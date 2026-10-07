@@ -37,6 +37,11 @@ const routes = [
     component: () => import('@/pages/Dashboard.vue'),
   },
   {
+    path: '/performance',
+    name: 'Performance',
+    component: () => import('@/pages/Performance.vue'),
+  },
+  {
     alias: '/leads',
     path: '/leads/view/:viewType?',
     name: 'Leads',
