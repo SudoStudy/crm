@@ -5,10 +5,14 @@ import { createRouter, createMemoryHistory } from 'vue-router'
 const mocks = vi.hoisted(() => ({ call: vi.fn() }))
 vi.mock('frappe-ui', async () => ({
   Button: (
-    await import('../../node_modules/frappe-ui/src/components/Button/Button.vue')
+    await import(
+      '../../node_modules/frappe-ui/src/components/Button/Button.vue'
+    )
   ).default,
   Dialog: (
-    await import('../../node_modules/frappe-ui/src/components/Dialog/Dialog.vue')
+    await import(
+      '../../node_modules/frappe-ui/src/components/Dialog/Dialog.vue'
+    )
   ).default,
   call: mocks.call,
 }))
