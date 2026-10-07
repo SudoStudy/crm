@@ -5,12 +5,22 @@ MariaDB. These tests refuse other sites, use real Frappe APIs/two DB connections
 and clean up their uniquely named fixtures. They are outside offline discovery.
 """
 
+from unittest import SkipTest
 from uuid import uuid4
 
 import frappe
-from frappe.tests import IntegrationTestCase
+
+try:
+	from frappe.tests import IntegrationTestCase
+
+	HAS_NATIVE_CONNECTION_RUNNER = True
+except ImportError:
+	from frappe.tests.utils import FrappeTestCase as IntegrationTestCase
+
+	HAS_NATIVE_CONNECTION_RUNNER = False
 
 from crm.api.performance import set_target
+from crm.patches.v1_0.native_performance_targets import execute as apply_performance_schema
 from crm.performance.activity import get_activity
 from crm.performance.targets import _name
 
@@ -20,8 +30,14 @@ class TestNativePerformance(IntegrationTestCase):
 	def setUpClass(cls):
 		if frappe.local.site != "test_site":
 			raise RuntimeError("Native Performance integration tests require disposable test_site")
+		if not HAS_NATIVE_CONNECTION_RUNNER:
+			raise SkipTest(
+				"This database suite requires Frappe v16's two-connection integration runner; v15 remains covered by offline behavior tests."
+			)
 		super().setUpClass()
 		frappe.set_user("Administrator")
+		# Fresh app installs do not execute migration patches automatically.
+		apply_performance_schema()
 		assert frappe.db.exists("DocType", "CRM Sales Target Rule"), "Apply native_performance_targets first"
 		assert frappe.get_meta("CRM Task").track_changes, "Task tracking migration must be applied"
 		prefix = "performance-test-" + uuid4().hex[:12]
