@@ -32,13 +32,19 @@ from zoneinfo import ZoneInfo
 
 BATCH_SIZE = 200
 CRM_PARENTS = {"CRM Lead", "CRM Deal"}
-HISTORY_PARENTS = CRM_PARENTS | {"CRM Task"}
+HISTORY_PARENTS = CRM_PARENTS | {"CRM Task", "FCRM Note"}
 LINK_PARENTS = HISTORY_PARENTS | {"CRM Call Log", "FCRM Note"}
 
 # Explicit operational fields protect against arbitrary/custom secret fields in
 # Version.data while also suppressing derived SLA/reconciliation change noise.
 VERSION_FIELDS = {
 	"CRM Lead": {
+		"next_step",
+		"next_action_date",
+		"segment",
+		"subjects",
+		"comm_platform",
+		"instagram_id",
 		"status",
 		"lead_owner",
 		"first_name",
@@ -61,6 +67,14 @@ VERSION_FIELDS = {
 		"lost_notes",
 	},
 	"CRM Deal": {
+		"customer_health",
+		"health_reason",
+		"churn_status",
+		"churn_reason",
+		"churned_on",
+		"expected_students",
+		"price_per_student",
+		"next_action_date",
 		"status",
 		"deal_owner",
 		"organization",
@@ -86,6 +100,7 @@ VERSION_FIELDS = {
 		"lost_notes",
 	},
 	"CRM Task": {"title", "status", "priority", "assigned_to", "due_date", "start_date", "description"},
+	"FCRM Note": {"title", "content"},
 }
 
 REFERENCE_FIELDS = {
@@ -220,7 +235,11 @@ def normalize_source(doctype, row, timezone="UTC"):
 			c["field"] == "status" and c["value"] in {"Done", "Completed"} for c in changes
 		)
 		kind = "task_completed" if completed else "changed"
-		title = "Task completed" if completed else f"{parent_doctype.removeprefix('CRM ')} changed"
+		title = (
+			"Task completed"
+			if completed
+			else f"{parent_doctype.removeprefix('CRM ').removeprefix('FCRM ')} changed"
+		)
 		summary = "; ".join(
 			f"{c['label']}: {c['old_value'] or 'empty'} → {c['value'] or 'empty'}" for c in changes
 		)
@@ -279,6 +298,8 @@ def normalize_source(doctype, row, timezone="UTC"):
 		"actor": actor,
 		"category": "task"
 		if doctype == "CRM Task" or (doctype == "Version" and parent_doctype == "CRM Task")
+		else "note"
+		if doctype == "Version" and parent_doctype == "FCRM Note"
 		else "change"
 		if doctype == "Version"
 		else "call"
@@ -488,6 +509,10 @@ def get_activity(users, mode, page=1, page_size=30, end_date=None, kind="all"):
 	if hasattr(frappe, "get_meta") and not frappe.get_meta("CRM Task").get("track_changes"):
 		warnings.add(
 			"Task change tracking is disabled; task history may be missing past changes and completions."
+		)
+	else:
+		warnings.add(
+			"Task history before tracking was enabled may be incomplete; past actions are not reconstructed."
 		)
 	reader = _Reader(frappe)
 	events = {}

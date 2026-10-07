@@ -92,6 +92,31 @@ class Transport:
 
 
 class NormalizationTests(unittest.TestCase):
+	def test_known_operational_custom_fields_visible_but_derived_and_unknown_hidden(self):
+		for doctype, fields in (
+			("CRM Deal", ["customer_health", "next_action_date", "churn_status"]),
+			("CRM Lead", ["next_step", "segment", "comm_platform"]),
+		):
+			event = normalize_source(
+				"Version",
+				source(
+					"operational",
+					ref_doctype=doctype,
+					docname="record",
+					data=json.dumps(
+						{
+							"changed": [[field, "old", "new"] for field in fields]
+							+ [
+								["notion_id", "old", "new"],
+								["last_activity_at", "old", "new"],
+								["unknown_secret", "old", "new"],
+							]
+						}
+					),
+				),
+			)
+			self.assertEqual([change["field"] for change in event["details"]["changes"]], fields)
+
 	def test_seven_site_calendar_days_and_aware_timestamp(self):
 		start, end = calendar_window("2026-10-07", "Asia/Karachi")
 		self.assertEqual(start.isoformat(), "2026-10-01T00:00:00+05:00")
@@ -145,7 +170,7 @@ class NormalizationTests(unittest.TestCase):
 				{
 					"changed": [
 						["last_activity_at", "a", "b"],
-						["next_action_date", "a", "b"],
+						["notion_id", "a", "b"],
 						["first_response_time", 0, 1],
 					]
 				}
@@ -189,6 +214,37 @@ class NormalizationTests(unittest.TestCase):
 
 
 class ActivityServiceTests(unittest.TestCase):
+	def test_note_versions_require_note_and_linked_parent_permission(self):
+		rows = {
+			"Version": [
+				source(
+					"note-edit",
+					ref_doctype="FCRM Note",
+					docname="note",
+					data=json.dumps({"changed": [["title", "Old", "Follow up"]]}),
+				)
+			]
+		}
+		docs = {
+			("FCRM Note", "note"): {
+				"name": "note",
+				"reference_doctype": "CRM Lead",
+				"reference_docname": "lead",
+			},
+			("CRM Lead", "lead"): {"name": "lead", "lead_owner": REP},
+		}
+		allowed = self.get(Transport(rows, docs), kind="note")
+		self.assertEqual(allowed["total"], 1)
+		self.assertEqual(allowed["events"][0]["category"], "note")
+		for denied in (("FCRM Note", "note"), ("CRM Lead", "lead")):
+			self.assertEqual(self.get(Transport(rows, docs, denied={denied}), kind="note")["total"], 0)
+
+	def test_enabled_task_tracking_still_explains_historical_gaps(self):
+		transport = Transport()
+		transport.get_meta = lambda doctype: {"track_changes": 1}
+		result = self.get(transport)
+		self.assertTrue(any("Task history before tracking" in warning for warning in result["warnings"]))
+
 	def get(self, transport, users=None, mode="performed_by", **kwargs):
 		with patch.dict(sys.modules, {"frappe": transport}):
 			return get_activity(users or [REP], mode, end_date="2026-10-07", **kwargs)

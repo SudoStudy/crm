@@ -101,12 +101,17 @@ def _write_one(doctype, user, month, amount, month_field, prefix):
 	# Check the exact authorized user/month independently of desk list filtering:
 	# a hidden legacy row must never turn an edit into a duplicate insert.
 	existing = frappe.db.get_values(
-		doctype, filters={"salesperson": user, month_field: month}, fieldname="name", as_dict=True, limit=2
+		doctype,
+		filters={"salesperson": user, month_field: month},
+		fieldname="name",
+		as_dict=True,
+		limit=2,
+		for_update=True,
 	)
 	if len(existing) > 1:
 		raise ValueError("Duplicate monthly target rows must be resolved before editing")
 	if existing:
-		doc = frappe.get_doc(doctype, existing[0]["name"])
+		doc = frappe.get_doc(doctype, existing[0]["name"], for_update=True)
 	else:
 		doc = frappe.get_doc(
 			{"doctype": doctype, "name": _name(user, month, prefix), "salesperson": user, month_field: month}
@@ -118,7 +123,7 @@ def _write_one(doctype, user, month, amount, month_field, prefix):
 	if existing:
 		doc.save(ignore_permissions=True)
 	else:
-		doc.insert(ignore_permissions=True)
+		doc.insert(ignore_permissions=True, set_name=_name(user, month, prefix))
 	return doc.name
 
 

@@ -85,3 +85,17 @@ def ensure_schema(name, month_field):
 def execute():
 	ensure_schema("CRM Sales Target", "target_month")
 	ensure_schema("CRM Sales Target Rule", "effective_month")
+	# Capture actual future task edits/completions. Never backfill Versions from
+	# current modified timestamps, which cannot prove historical actions.
+	if not frappe.get_meta("CRM Task").track_changes:
+		frappe.get_doc(
+			{
+				"doctype": "Property Setter",
+				"doctype_or_field": "DocType",
+				"doc_type": "CRM Task",
+				"property": "track_changes",
+				"property_type": "Check",
+				"value": "1",
+				"is_system_generated": 1,
+			}
+		).insert(ignore_permissions=True)

@@ -13,6 +13,56 @@ with patch.dict(sys.modules, {"frappe": fake}):
 
 
 class TargetTests(unittest.TestCase):
+	def test_first_edits_use_current_read_after_lock_and_durable_frappe_name(self):
+		# Model a Repeatable Read snapshot established before the User lock:
+		# ordinary SELECTs remain empty even after another request commits.
+		rows, locks, inserts = {}, [], []
+
+		class Doc:
+			def __init__(self, values):
+				self.__dict__.update(values)
+
+			def insert(self, ignore_permissions=False, set_name=None):
+				# Frappe hash autoname discards a pre-populated doc.name.
+				self.name = set_name or f"random-{len(rows)}"
+				if self.name in rows:
+					raise ValueError("Duplicate primary key")
+				rows[self.name] = self
+				inserts.append(self.name)
+
+			def save(self, ignore_permissions=False):
+				rows[self.name] = self
+
+		def current_values(doctype, filters, **kwargs):
+			self.assertTrue(locks, "User lock must precede pair reads")
+			if not kwargs.get("for_update"):
+				return []
+			return [
+				{"name": name}
+				for name, doc in rows.items()
+				if doc.doctype == doctype
+				and all(getattr(doc, key) == value for key, value in filters.items())
+			]
+
+		with patch.object(targets, "frappe") as f:
+			f.db.get_value.side_effect = lambda *args, **kwargs: locks.append(kwargs.get("for_update"))
+			f.db.get_values.side_effect = current_values
+
+			def load_doc(values, name=None, **kwargs):
+				if name and not kwargs.get("for_update"):
+					raise LookupError("The old snapshot cannot see the committed document")
+				return rows[name] if name else Doc(values)
+
+			f.get_doc.side_effect = load_doc
+			first = targets.save_target("rep", "2026-10-01", 300, False)
+			second = targets.save_target("rep", "2026-10-01", 400, False)
+			self.assertEqual(len(rows), 1)
+			self.assertEqual(first["name"], targets._name("rep", "2026-10-01", "target"))
+			self.assertEqual(first["name"], second["name"])
+			self.assertEqual(len(inserts), 1)
+			self.assertEqual(rows[first["name"]].target_new_mrr, 400)
+			self.assertTrue(all(call.kwargs["for_update"] for call in f.db.get_values.call_args_list))
+
 	def test_explicit_month_overrides_latest_applicable_rule(self):
 		rows = [
 			{"salesperson": "rep", "target_month": "2026-10-01", "currency": "USD", "target_new_mrr": 450}
@@ -114,7 +164,7 @@ class TargetTests(unittest.TestCase):
 			f.get_doc.return_value = doc
 			targets.save_target("rep", "2026-10-01", 400, False)
 			db.get_value.assert_called_once_with("User", "rep", "name", for_update=True)
-			f.get_doc.assert_called_once_with("CRM Sales Target", "legacy")
+			f.get_doc.assert_called_once_with("CRM Sales Target", "legacy", for_update=True)
 			self.assertEqual(doc.target_new_mrr, 400)
 			doc.save.assert_called_once_with(ignore_permissions=True)
 			self.assertEqual(f.get_doc.call_count, 1)

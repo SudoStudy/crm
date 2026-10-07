@@ -25,6 +25,24 @@ class SchemaDoc:
 
 
 class MigrationTests(unittest.TestCase):
+	def test_enables_future_task_versions_once_without_reconstructing_history(self):
+		meta = types.SimpleNamespace(track_changes=0)
+		with patch.object(migration, "frappe") as f, patch.object(migration, "ensure_schema"):
+			f.get_meta.return_value = meta
+			f.get_doc.return_value.insert.side_effect = lambda **kwargs: setattr(meta, "track_changes", 1)
+			migration.execute()
+			migration.execute()
+			f.get_doc.assert_called_once()
+			setter = f.get_doc.call_args.args[0]
+			self.assertEqual(setter["doctype"], "Property Setter")
+			self.assertEqual(setter["doc_type"], "CRM Task")
+			self.assertEqual(setter["doctype_or_field"], "DocType")
+			self.assertEqual(
+				(setter["property"], setter["property_type"], setter["value"]),
+				("track_changes", "Check", "1"),
+			)
+			f.db.sql.assert_not_called()
+
 	def test_existing_custom_schema_preserved_and_second_run_is_noop(self):
 		target, rule = SchemaDoc(), SchemaDoc("FCRM")
 		with patch.object(migration, "frappe") as f:
