@@ -6,9 +6,15 @@ import OrganizationsIcon from '@/components/Icons/OrganizationsIcon.vue'
 import PhoneIcon from '@/components/Icons/PhoneIcon.vue'
 import TaskIcon from '@/components/Icons/TaskIcon.vue'
 import LucideLayoutDashboard from '~icons/lucide/layout-dashboard'
+import LucideChartNoAxesCombined from '~icons/lucide/chart-no-axes-combined'
 import router from '@/router'
 
 export const navigationItems = [
+  {
+    label: 'Performance',
+    icon: LucideChartNoAxesCombined,
+    route: 'Performance',
+  },
   {
     label: 'Dashboard',
     icon: LucideLayoutDashboard,

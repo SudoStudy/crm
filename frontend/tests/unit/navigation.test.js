@@ -6,6 +6,16 @@ describe('navigationItems', () => {
     expect(new Set(routes).size).toBe(routes.length)
   })
 
+  it.each([false, true])(
+    'keeps Performance first when mobile is %s',
+    (mobile) => {
+      expect(getNavigationItems({ mobile })[0]).toMatchObject({
+        label: 'Performance',
+        route: 'Performance',
+      })
+    },
+  )
+
   it('omits desktop-only destinations on mobile', () => {
     const mobileRoutes = getNavigationItems({ mobile: true }).map(
       (item) => item.route,

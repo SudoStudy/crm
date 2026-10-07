@@ -2,8 +2,8 @@
   <div v-show="showCallPopup" v-bind="$attrs">
     <div
       ref="callPopup"
-      class="fixed z-20 flex w-60 cursor-move select-none flex-col rounded-lg bg-surface-gray-10 p-4 text-ink-gray-2 shadow-2xl"
-      :style="style"
+      class="fixed z-20 flex max-h-[calc(100vh-2rem)] w-60 cursor-move select-none flex-col overflow-y-auto rounded-lg bg-surface-gray-10 p-4 text-ink-gray-2 shadow-2xl"
+      :style="popupStyle"
     >
       <div class="flex flex-row-reverse items-center gap-1">
         <MinimizeIcon
@@ -47,11 +47,15 @@
             class="rounded-full"
             @click="toggleMute"
           />
-          <!-- <Button class="rounded-full">
-          <template #icon>
-            <DialpadIcon class="cursor-pointer rounded-full" />
-          </template>
-        </Button> -->
+          <Button
+            class="rounded-full"
+            :tooltip="__('Keypad')"
+            :aria-label="__('Keypad')"
+            :aria-expanded="showKeypad"
+            :icon="DialpadIcon"
+            @pointerdown.stop
+            @click="showKeypad = !showKeypad"
+          />
           <Button
             class="cursor-pointer rounded-full"
             :tooltip="__('Add a Note')"
@@ -80,7 +84,41 @@
             </template>
           </Button>
         </div>
-        <div v-else class="flex gap-2">
+        <div
+          v-if="onCall && showKeypad"
+          ref="keypad"
+          class="w-full cursor-default"
+          role="group"
+          :aria-label="__('Call keypad')"
+          tabindex="0"
+          @pointerdown.stop
+          @keydown="handleKeypadKey"
+        >
+          <div class="mb-2 truncate text-center text-base" aria-live="polite">
+            {{ sentDigits || __('Enter menu option or extension') }}
+          </div>
+          <div class="grid grid-cols-3 gap-2">
+            <Button
+              v-for="digit in keypadDigits"
+              :key="digit"
+              size="lg"
+              :label="digit"
+              :aria-label="__('Send {0}', [digit])"
+              @click="sendDigit(digit)"
+            />
+          </div>
+          <div
+            v-if="keypadError"
+            role="alert"
+            class="mt-2 text-sm text-ink-red-2"
+          >
+            {{ keypadError }}
+          </div>
+        </div>
+        <div
+          v-if="!onCall && !calling && callStatus != 'initiating'"
+          class="flex gap-2"
+        >
           <Button
             size="md"
             variant="solid"
@@ -172,13 +210,15 @@
 import NoteIcon from '@/components/Icons/NoteIcon.vue'
 import MinimizeIcon from '@/components/Icons/MinimizeIcon.vue'
 import PhoneIcon from '@/components/Icons/PhoneIcon.vue'
+import DialpadIcon from '@/components/Icons/DialpadIcon.vue'
+import { createCallDigitQueue, keypadDigitFromEvent } from '@/utils/callKeypad'
 import CountUpTimer from '@/components/CountUpTimer.vue'
 import { useDoctypeModal } from '@/composables/doctypeModal'
 import { Device } from '@twilio/voice-sdk'
-import { useDraggable, useWindowSize } from '@vueuse/core'
+import { useDraggable, useWindowSize, useElementSize } from '@vueuse/core'
 import { useTelemetry, useOnboarding } from 'frappe-ui/frappe'
 import { Avatar, call, createResource } from 'frappe-ui'
-import { ref, watch } from 'vue'
+import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
 
 const { capture } = useTelemetry()
 const { updateOnboardingStep } = useOnboarding('frappecrm')
@@ -195,6 +235,63 @@ let muted = ref(false)
 let callPopup = ref(null)
 let counterUp = ref(null)
 let callStatus = ref('')
+const showKeypad = ref(false)
+const keypad = ref(null)
+const sentDigits = ref('')
+const keypadError = ref('')
+const keypadDigits = [
+  '1',
+  '2',
+  '3',
+  '4',
+  '5',
+  '6',
+  '7',
+  '8',
+  '9',
+  '*',
+  '0',
+  '#',
+]
+watch(showKeypad, async (visible) => {
+  if (visible) {
+    await nextTick()
+    keypad.value?.focus()
+  }
+})
+
+watch(onCall, () => {
+  digitQueue.clear()
+  showKeypad.value = false
+  sentDigits.value = ''
+  keypadError.value = ''
+})
+
+const digitQueue = createCallDigitQueue({
+  getCall: () => _call,
+  isConnected: () => onCall.value,
+  onSent: (digit) => {
+    // Keep a short, in-memory display only; menu input is never logged or saved.
+    sentDigits.value = (sentDigits.value + digit).slice(-24)
+  },
+  onError: () => {
+    keypadError.value = __('Could not send digit. Please try again.')
+  },
+})
+onUnmounted(() => digitQueue.clear())
+
+function sendDigit(digit) {
+  keypadError.value = ''
+  digitQueue.send(digit)
+}
+
+function handleKeypadKey(event) {
+  const digit = keypadDigitFromEvent(event)
+  if (!digit) return
+  event.preventDefault()
+  event.stopPropagation()
+  sendDigit(digit)
+}
 
 const phoneNumber = ref('')
 
@@ -257,10 +354,18 @@ async function updateNote(_note, isInsert = false) {
 
 const { width, height } = useWindowSize()
 
-let { style } = useDraggable(callPopup, {
+let { x, y } = useDraggable(callPopup, {
   initialValue: { x: width.value - 280, y: height.value - 310 },
   preventDefault: true,
+  capture: false,
 })
+const { height: popupHeight } = useElementSize(callPopup, undefined, {
+  box: 'border-box',
+})
+const popupStyle = computed(() => ({
+  left: `${Math.max(16, Math.min(x.value, width.value - 256))}px`,
+  top: `${Math.max(16, Math.min(y.value, height.value - popupHeight.value - 16))}px`,
+}))
 
 async function startupClient() {
   log.value = 'Requesting Access Token...'

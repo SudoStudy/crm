@@ -67,9 +67,9 @@ yarn test:run      # single run
 yarn test          # watch mode
 ```
 
-- **118 tests · ~250ms** — all must pass before committing
+- All tests must pass before committing
 - Location: `frontend/tests/unit/`
-- Only pure utility functions are unit-tested (no Vue component tests yet)
+- Tests cover pure utility functions and the Twilio keypad Vue component with mocked call services
 - Add tests in `tests/unit/` when adding pure logic to `src/utils/`
 
 ---
