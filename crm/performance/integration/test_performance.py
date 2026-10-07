@@ -100,10 +100,10 @@ class TestNativePerformance(IntegrationTestCase):
 			{"doctype": "CRM Task", "title": "Performance fixture", "status": "Todo"}
 		).insert()
 		task.status = "Done"
-		task.save()
+		task.save(ignore_version=False)
 		note = frappe.get_doc({"doctype": "FCRM Note", "title": "Before", "content": "Initial"}).insert()
 		note.title = "After"
-		note.save()
+		note.save(ignore_version=False)
 		versions = frappe.get_all(
 			"Version",
 			filters={"docname": ["in", [str(task.name), note.name]]},
