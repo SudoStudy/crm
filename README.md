@@ -74,7 +74,7 @@ The motivation behind building Frappe CRM stems from the need for a simple, cust
 
 ### Integrations
 
--   **Twilio:** Integrate Twilio to make and receive calls from the CRM. You can also record calls. It is a built-in integration.
+-   **Twilio:** Integrate Twilio to make and receive calls from the CRM. You can also record calls. During a connected call, open **Keypad** to enter menu options or extensions with `0–9`, `*`, and `#`; click the buttons or type while the keypad has focus. It is a built-in integration.
 -   **Exotel:** Integrate Exotel to make and receive calls via agents mobile phone from the CRM. You can also record calls. It is a built-in integration.
 -   **WhatsApp:** Integrate WhatsApp to send and receive messages from the CRM. [Frappe WhatsApp](https://github.com/shridarpatil/frappe_whatsapp) is used for this integration.
 -   **ERPNext:** Integrate with [ERPNext](https://erpnext.com) to extend the CRM capabilities to include invoicing, accounting, and more.
