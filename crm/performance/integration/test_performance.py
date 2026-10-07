@@ -41,7 +41,8 @@ class TestNativePerformance(IntegrationTestCase):
 					"roles": [{"role": "Sales Manager" if user == cls.manager else "Sales User"}],
 				}
 			).insert(ignore_permissions=True)
-		frappe.db.commit()
+		# Disposable test_site fixtures must be visible to both independent connections.
+		frappe.db.commit()  # nosemgrep: frappe-semgrep-rules.rules.frappe-manual-commit
 		cls.addClassCleanup(cls.cleanup_fixtures)
 
 	@classmethod
@@ -57,7 +58,8 @@ class TestNativePerformance(IntegrationTestCase):
 			frappe.db.delete(doctype, {"owner": ["in", cls.users]})
 		for user in cls.users:
 			frappe.delete_doc("User", user, ignore_permissions=True, force=True)
-		frappe.db.commit()
+		# Commit fixture cleanup on disposable test_site after committed cross-connection tests.
+		frappe.db.commit()  # nosemgrep: frappe-semgrep-rules.rules.frappe-manual-commit
 
 	def setUp(self):
 		super().setUp()
@@ -138,7 +140,8 @@ class TestNativePerformance(IntegrationTestCase):
 		with self.primary_connection():
 			frappe.set_user(self.manager)
 			first = set_target(self.rep, self.month, 300, False)
-			frappe.db.commit()
+			# Publish the first test edit so the second connection retains an older snapshot.
+			frappe.db.commit()  # nosemgrep: frappe-semgrep-rules.rules.frappe-manual-commit
 		with self.secondary_connection():
 			frappe.set_user(self.manager)
 			# Its normal snapshot still cannot see the newly committed target.
@@ -149,7 +152,8 @@ class TestNativePerformance(IntegrationTestCase):
 				[],
 			)
 			second = set_target(self.rep, self.month, 400, False)
-			frappe.db.commit()
+			# Publish the second test edit for an independent primary-connection assertion.
+			frappe.db.commit()  # nosemgrep: frappe-semgrep-rules.rules.frappe-manual-commit
 		with self.primary_connection():
 			frappe.db.rollback()
 			rows = frappe.db.get_values(

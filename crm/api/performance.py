@@ -1,6 +1,7 @@
 """Native Performance endpoints. Every entry point validates identity and scope."""
 
 import frappe
+from frappe import _
 
 from crm.performance.metrics import period_bounds, summarize
 from crm.performance.targets import get_targets, save_target
@@ -12,10 +13,10 @@ MANAGER_ROLES = {"Sales Manager", "System Manager"}
 def identity():
 	user = frappe.session.user
 	if not user or user == "Guest":
-		frappe.throw("Sign in to view Performance", frappe.AuthenticationError)
+		frappe.throw(_("Sign in to view Performance"), frappe.AuthenticationError)
 	roles = set(frappe.get_roles(user))
 	if not roles & CRM_ROLES:
-		frappe.throw("CRM access is required", frappe.PermissionError)
+		frappe.throw(_("CRM access is required"), frappe.PermissionError)
 	return user, bool(roles & MANAGER_ROLES)
 
 
@@ -59,7 +60,7 @@ def resolve_scope(salesperson=None):
 	user, manager = identity()
 	selected = salesperson or user
 	if not manager and selected != user:
-		frappe.throw("You can view only your own Performance", frappe.PermissionError)
+		frappe.throw(_("You can view only your own Performance"), frappe.PermissionError)
 	if selected == "team":
 		return team_users()
 	if (
@@ -67,7 +68,7 @@ def resolve_scope(salesperson=None):
 		or not set(frappe.get_roles(selected)) & CRM_ROLES
 		or not frappe.db.get_value("User", selected, "enabled")
 	):
-		frappe.throw("Choose an enabled CRM user", frappe.PermissionError)
+		frappe.throw(_("Choose an enabled CRM user"), frappe.PermissionError)
 	return [selected]
 
 
@@ -90,9 +91,9 @@ def pagination(page, page_size):
 	try:
 		page, page_size = int(page), int(page_size)
 	except (ValueError, TypeError):
-		frappe.throw("Invalid pagination", frappe.ValidationError)
+		frappe.throw(_("Invalid pagination"), frappe.ValidationError)
 	if page < 1 or not 1 <= page_size <= 100:
-		frappe.throw("Invalid pagination", frappe.ValidationError)
+		frappe.throw(_("Invalid pagination"), frappe.ValidationError)
 	return page, page_size
 
 
@@ -115,7 +116,13 @@ def get_context():
 
 
 @frappe.whitelist()
-def get_summary(salesperson=None, period="month", anchor=None, page=1, page_size=20):
+def get_summary(
+	salesperson: str | None = None,
+	period: str = "month",
+	anchor: str | None = None,
+	page: int = 1,
+	page_size: int = 20,
+):
 	users = resolve_scope(salesperson)
 	page, page_size = pagination(page, page_size)
 	try:
@@ -160,26 +167,32 @@ def get_summary(salesperson=None, period="month", anchor=None, page=1, page_size
 
 
 @frappe.whitelist()
-def get_activity(salesperson=None, mode="performed_by", page=1, page_size=30, kind="all"):
+def get_activity(
+	salesperson: str | None = None,
+	mode: str = "performed_by",
+	page: int = 1,
+	page_size: int = 30,
+	kind: str = "all",
+):
 	users = resolve_scope(salesperson)
 	page, page_size = pagination(page, page_size)
 	if mode not in ("performed_by", "owned_records"):
-		frappe.throw("Invalid activity scope", frappe.ValidationError)
+		frappe.throw(_("Invalid activity scope"), frappe.ValidationError)
 	if kind not in ("all", "call", "change", "note", "task", "communication", "comment"):
-		frappe.throw("Invalid activity type", frappe.ValidationError)
+		frappe.throw(_("Invalid activity type"), frappe.ValidationError)
 	from crm.performance.activity import get_activity as load_activity
 
 	return load_activity(users, mode, page, page_size, kind=kind)
 
 
 @frappe.whitelist(methods=["POST"])
-def set_target(salesperson, month, amount, recurring=False):
-	_, manager = identity()
+def set_target(salesperson: str, month: str, amount: int | float | str, recurring: bool | int | str = False):
+	manager = identity()[1]
 	if not manager:
-		frappe.throw("Only managers can edit targets", frappe.PermissionError)
+		frappe.throw(_("Only managers can edit targets"), frappe.PermissionError)
 	users = resolve_scope(salesperson)
 	if salesperson == "team" or len(users) != 1:
-		frappe.throw("Choose one salesperson and an actual month", frappe.ValidationError)
+		frappe.throw(_("Choose one salesperson and an actual month"), frappe.ValidationError)
 	try:
 		return save_target(users[0], month, amount, recurring)
 	except ValueError as error:
