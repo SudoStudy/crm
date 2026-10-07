@@ -497,7 +497,7 @@ def get_activity(users, mode, page=1, page_size=30, end_date=None, kind="all"):
 		raise ValueError("Activity page must be positive and page size must be between 1 and 100")
 	if (
 		isinstance(users, str)
-		or not isinstance(users, (list, tuple, set))
+		or not isinstance(users, list | tuple | set)
 		or not all(isinstance(user, str) and user for user in users)
 	):
 		raise ValueError("Activity users must be an explicit list of User names")
