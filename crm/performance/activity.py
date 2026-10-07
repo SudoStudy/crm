@@ -194,6 +194,7 @@ def normalize_source(doctype, row, timezone="UTC"):
 	"""
 	if doctype not in REFERENCE_FIELDS or not row.get("name"):
 		return None
+	source_name = str(row.get("name"))
 	timestamp_field = {"CRM Call Log": "start_time", "Communication": "communication_date"}.get(doctype)
 	timestamp = _timestamp(row.get(timestamp_field) or row.get("creation"), timezone)
 	if timestamp is None:
@@ -211,7 +212,7 @@ def normalize_source(doctype, row, timezone="UTC"):
 			return None
 		changes = []
 		for change in data["changed"]:
-			if not isinstance(change, (list, tuple)) or len(change) != 3:
+			if not isinstance(change, list | tuple) or len(change) != 3:
 				continue
 			field, old, new = change
 			if (
@@ -290,9 +291,9 @@ def normalize_source(doctype, row, timezone="UTC"):
 			"medium": _text(row.get("communication_medium")),
 		}
 	return {
-		"id": f"{doctype}:{row['name']}",
+		"id": f"{doctype}:{source_name}",
 		"source_doctype": doctype,
-		"source_name": str(row["name"]),
+		"source_name": source_name,
 		"kind": kind,
 		"timestamp": timestamp.isoformat(),
 		"actor": actor,
@@ -313,7 +314,7 @@ def normalize_source(doctype, row, timezone="UTC"):
 		"url": _url(parent_doctype, parent_name),
 		"source_url": _url(parent_doctype, parent_name)
 		if doctype in {"Version", "Comment"}
-		else _url(doctype, row["name"]),
+		else _url(doctype, source_name),
 	}
 
 

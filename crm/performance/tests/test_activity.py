@@ -92,6 +92,24 @@ class Transport:
 
 
 class NormalizationTests(unittest.TestCase):
+	def test_real_document_style_sources_need_only_get_not_subscript(self):
+		class DocumentLike:
+			def __init__(self, values):
+				self.values = values
+
+			def get(self, key, default=None):
+				return self.values.get(key, default)
+
+		for doctype, values in (
+			("FCRM Note", {"title": "Follow up", "content": "Details"}),
+			("CRM Task", {"title": "Follow up"}),
+			("CRM Call Log", {"type": "Outgoing", "caller": REP}),
+			("Communication", {"subject": "Update"}),
+		):
+			event = normalize_source(doctype, DocumentLike(source("real-document", **values)))
+			self.assertEqual(event["source_name"], "real-document")
+			self.assertEqual(event["id"], f"{doctype}:real-document")
+
 	def test_known_operational_custom_fields_visible_but_derived_and_unknown_hidden(self):
 		for doctype, fields in (
 			("CRM Deal", ["customer_health", "next_action_date", "churn_status"]),

@@ -131,11 +131,10 @@ class TestNativePerformance(IntegrationTestCase):
 			self.skipTest("Repeatable Read regression targets MariaDB")
 		with self.secondary_connection():
 			frappe.db.sql("SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ")
-			self.assertEqual(
+			self.assertFalse(
 				frappe.db.get_values(
 					"CRM Sales Target", {"salesperson": self.rep, "target_month": self.month}
 				),
-				[],
 			)
 		with self.primary_connection():
 			frappe.set_user(self.manager)
@@ -145,11 +144,10 @@ class TestNativePerformance(IntegrationTestCase):
 		with self.secondary_connection():
 			frappe.set_user(self.manager)
 			# Its normal snapshot still cannot see the newly committed target.
-			self.assertEqual(
+			self.assertFalse(
 				frappe.db.get_values(
 					"CRM Sales Target", {"salesperson": self.rep, "target_month": self.month}
 				),
-				[],
 			)
 			second = set_target(self.rep, self.month, 400, False)
 			# Publish the second test edit for an independent primary-connection assertion.
