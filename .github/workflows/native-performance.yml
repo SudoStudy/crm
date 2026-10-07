@@ -5,6 +5,8 @@ on:
     paths:
       - 'crm/api/performance.py'
       - 'crm/performance/**'
+      - 'crm/permissions/sales_targets.py'
+      - 'crm/hooks.py'
       - 'crm/patches/v1_0/native_performance_targets.py'
       - 'crm/patches.txt'
       - 'frontend/**'
