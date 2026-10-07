@@ -48,10 +48,10 @@ jobs:
             - name: Resolve frappe branch for base
               id: frappe
               run: |
-                  # Stable lanes run on frappe version-15; develop tracks frappe develop.
+                  # SudoStudy main deploys on Frappe 16; upstream hotfix retains 15.
                   case "$BASE_BRANCH" in
-                      main|main-hotfix) echo "branch=version-15" >> "$GITHUB_OUTPUT" ;;
-                      codex/*)          echo "branch=version-16" >> "$GITHUB_OUTPUT" ;;
+                      main-hotfix)      echo "branch=version-15" >> "$GITHUB_OUTPUT" ;;
+                      main|codex/*)     echo "branch=version-16" >> "$GITHUB_OUTPUT" ;;
                       *)                echo "branch=develop"    >> "$GITHUB_OUTPUT" ;;
                   esac
 

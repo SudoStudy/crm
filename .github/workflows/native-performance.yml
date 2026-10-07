@@ -12,7 +12,7 @@ on:
       - 'frontend/**'
       - '.github/workflows/native-performance.yml'
   push:
-    branches: ['codex/native-performance']
+    branches: ['main']
   workflow_dispatch:
 
 permissions:
