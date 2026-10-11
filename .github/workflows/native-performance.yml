@@ -7,7 +7,10 @@ on:
       - 'crm/performance/**'
       - 'crm/permissions/sales_targets.py'
       - 'crm/hooks.py'
+      - 'crm/install.py'
       - 'crm/patches/v1_0/native_performance_targets.py'
+      - 'crm/patches/v1_0/performance_call_costs.py'
+      - 'crm/fcrm/doctype/crm_deal/**'
       - 'crm/patches.txt'
       - 'frontend/**'
       - '.github/workflows/native-performance.yml'
@@ -35,7 +38,7 @@ jobs:
       - name: Offline performance tests
         run: python -m unittest discover -s crm/performance/tests -v
       - name: Compile Python
-        run: python -m compileall -q crm/api/performance.py crm/performance crm/patches/v1_0/native_performance_targets.py
+        run: python -m compileall -q crm/api/performance.py crm/performance crm/patches/v1_0/native_performance_targets.py crm/patches/v1_0/performance_call_costs.py crm/fcrm/doctype/crm_deal
 
   frontend:
     name: CRM unit tests and production assets
@@ -90,7 +93,11 @@ jobs:
           install-erpnext: 'false'
       - name: Apply native schema on the test site
         working-directory: /home/runner/frappe-bench
-        run: bench --site test_site execute crm.patches.v1_0.native_performance_targets.execute
+        run: |
+          bench --site test_site execute crm.patches.v1_0.native_performance_targets.execute
+          bench --site test_site execute crm.patches.v1_0.performance_call_costs.execute
       - name: Test framework permissions, task history and concurrent saves
         working-directory: /home/runner/frappe-bench
-        run: bench --site test_site run-tests --module crm.performance.integration.test_performance
+        run: |
+          bench --site test_site run-tests --module crm.performance.integration.test_performance
+          bench --site test_site run-tests --module crm.performance.integration.test_call_costs
