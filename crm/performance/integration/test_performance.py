@@ -19,7 +19,7 @@ except ImportError:
 
 	HAS_NATIVE_CONNECTION_RUNNER = False
 
-from crm.api.performance import set_target
+from crm.api.performance import set_target, update_forecast
 from crm.patches.v1_0.native_performance_targets import execute as apply_performance_schema
 from crm.performance.activity import get_activity
 from crm.performance.targets import _name
@@ -111,6 +111,41 @@ class TestNativePerformance(IntegrationTestCase):
 			self.assertEqual(
 				len(frappe.get_list(doctype, filters={"salesperson": ["in", [self.rep, self.other]]})), 2
 			)
+
+	def test_real_forecast_save_preserves_manual_amount_zero_probability_and_owner_scope(self):
+		frappe.set_user("Administrator")
+		frappe.db.set_single_value("FCRM Settings", "auto_update_expected_deal_value", 1)
+		frappe.db.set_single_value("FCRM Settings", "enable_forecasting", 1)
+		status = frappe.get_all("CRM Deal Status", filters={"type": "Open"}, pluck="name", limit=1)[0]
+		doc = frappe.get_doc(
+			{
+				"doctype": "CRM Deal",
+				"first_name": "Forecast fixture",
+				"status": status,
+				"deal_owner": self.rep,
+				"currency": "USD",
+				"expected_deal_value": 900,
+				"probability": 70,
+				"expected_closure_date": self.month,
+			}
+		).insert(ignore_permissions=True)
+		# Existing product totals must not overwrite a deliberate forecast edit.
+		frappe.db.set_value("CRM Deal", doc.name, {"net_total": 1200, "total": 1200})
+		doc.reload()
+		frappe.set_user(self.rep)
+		update_forecast(doc.name, 350, 0, self.month, str(doc.modified))
+		doc.reload()
+		self.assertEqual(float(doc.expected_deal_value), 350)
+		self.assertEqual(float(doc.probability), 0)
+		self.assertEqual(str(doc.expected_closure_date), self.month)
+		with self.assertRaises(frappe.TimestampMismatchError):
+			update_forecast(doc.name, 400, 50, self.month, "2000-01-01 00:00:00")
+		update_forecast(doc.name, 0, 0, self.month, str(doc.modified))
+		doc.reload()
+		self.assertEqual(float(doc.expected_deal_value), 0)
+		frappe.set_user(self.other)
+		with self.assertRaises(frappe.PermissionError):
+			update_forecast(doc.name, 400, 50, self.month, str(doc.modified))
 
 	def test_actual_task_and_note_versions_enter_feed(self):
 		frappe.set_user(self.rep)

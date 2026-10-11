@@ -57,7 +57,13 @@ def deal_contribution(deal, start, end):
 		"status": deal.get("status"),
 		"status_type": status,
 		"currency": "USD",
+		"modified": str(deal.get("modified") or ""),
 	}
+	try:
+		closing = date.fromisoformat(str(deal.get("expected_closure_date")))
+	except (ValueError, TypeError):
+		closing = None
+	base["expected_close_month"] = closing.replace(day=1).isoformat() if closing else None
 	try:
 		base["expected_mrr"] = (
 			usd(money(deal["expected_deal_value"])) if deal.get("expected_deal_value") is not None else None
@@ -101,6 +107,8 @@ def deal_contribution(deal, start, end):
 		}, None
 	if not status:
 		return None, "Deals with unknown status type are excluded."
+	if closing and not start <= closing.isoformat() < end:
+		return None, None
 	try:
 		expected = money(deal.get("expected_deal_value"))
 		probability = Decimal(str(deal.get("probability") or 0))
@@ -111,13 +119,17 @@ def deal_contribution(deal, start, end):
 		return None, "Deals with invalid forecast values are excluded."
 	return {
 		**base,
-		"kind": "pipeline",
+		"kind": "pipeline" if closing else "unscheduled",
 		"amount": expected,
-		"weighted": weighted,
+		"weighted": weighted if closing else Decimal(0),
 		"expected_mrr": usd(expected),
 		"probability": float(min(Decimal(100), max(Decimal(0), probability))),
 		"won_at": None,
-	}, None
+	}, (
+		None
+		if closing
+		else "Open deals without a valid expected closing month are excluded from weighted pipeline; set their closing month."
+	)
 
 
 def summarize(deals, targets, period):

@@ -234,7 +234,8 @@ class CRMDeal(Document):
 		"""
 		Update the default probability based on the status.
 		"""
-		if not self.probability or self.probability == 0:
+		# Zero is a deliberate forecast, not a missing value.
+		if self.probability is None or self.probability == "":
 			self.probability = frappe.db.get_value("CRM Deal Status", self.status, "probability") or 0
 
 	def update_expected_deal_value(self):
@@ -245,6 +246,8 @@ class CRMDeal(Document):
 			frappe.db.get_single_value("FCRM Settings", "auto_update_expected_deal_value")
 			and (self.net_total or self.total)
 			and self.expected_deal_value
+			and not self.has_value_changed("expected_deal_value")
+			and (self.has_value_changed("net_total") or self.has_value_changed("total"))
 		):
 			self.expected_deal_value = self.net_total or self.total
 
@@ -253,7 +256,7 @@ class CRMDeal(Document):
 		self.update_default_probability()
 		self.update_expected_deal_value()
 		if frappe.db.get_single_value("FCRM Settings", "enable_forecasting"):
-			if not self.expected_deal_value or self.expected_deal_value == 0:
+			if self.expected_deal_value is None or self.expected_deal_value == "":
 				frappe.throw(_("Expected deal value is required."), frappe.MandatoryError)
 			if not self.expected_closure_date:
 				frappe.throw(_("Expected closure date is required."), frappe.MandatoryError)
