@@ -1,10 +1,25 @@
 """Native Performance endpoints. Every entry point validates identity and scope."""
 
+from decimal import Decimal, InvalidOperation
+
 import frappe
 from frappe import _
 
-from crm.performance.metrics import period_bounds, summarize
+from crm.performance.metrics import money, month_key, period_bounds, summarize
 from crm.performance.targets import get_targets, save_target
+
+
+def load_cost_summary(start, end):
+	from crm.performance.call_costs import get_cost_summary
+
+	return get_cost_summary(start, end)
+
+
+def load_call_cost(doc):
+	from crm.performance.call_costs import get_call_cost
+
+	return get_call_cost(doc)
+
 
 CRM_ROLES = {"Sales User", "Sales Manager", "System Manager"}
 MANAGER_ROLES = {"Sales Manager", "System Manager"}
@@ -147,6 +162,7 @@ def get_summary(
 			# Recheck the real document to preserve custom permission hook behavior.
 			doc.check_permission("read")
 			values = doc.as_dict()
+			values["can_edit_forecast"] = doc.has_permission("write")
 			if values.get("deal_owner") not in users:
 				continue
 			values["status_type"] = (
@@ -159,10 +175,14 @@ def get_summary(
 			break
 		offset += len(rows)
 	result = summarize(deals, targets, bounds)
+	editable = {deal["name"]: deal.get("can_edit_forecast", False) for deal in deals}
+	for row in result["deals"]:
+		row["can_edit_forecast"] = bool(editable.get(row["name"]))
 	result["warnings"] = sorted(set(result["warnings"] + target_warnings))
 	result["total"] = len(result["deals"])
 	result["deals"] = result["deals"][(page - 1) * page_size : page * page_size]
 	result.update(page=page, page_size=page_size)
+	result["calling_costs"] = load_cost_summary(bounds["start"], bounds["end"])
 	return result
 
 
@@ -197,3 +217,51 @@ def set_target(salesperson: str, month: str, amount: int | float | str, recurrin
 		return save_target(users[0], month, amount, recurring)
 	except ValueError as error:
 		frappe.throw(str(error), frappe.ValidationError)
+
+
+@frappe.whitelist(methods=["POST"])
+def update_forecast(
+	deal: str, expected_mrr: float | str, probability: float | str, closing_month: str, modified: str
+):
+	"""Edit only forecast inputs, preserving native authorization and Versions."""
+	user, manager = identity()
+	doc = frappe.get_doc("CRM Deal", deal, for_update=True)
+	doc.check_permission("write")
+	if not manager and doc.deal_owner != user:
+		frappe.throw(_("You can edit only your own deal forecasts"), frappe.PermissionError)
+	if not modified or str(doc.modified) != modified:
+		frappe.throw(_("This deal changed. Reload Performance before saving."), frappe.TimestampMismatchError)
+	if doc.currency != "USD":
+		frappe.throw(
+			_("Performance forecasts require USD; no conversion is assumed."), frappe.ValidationError
+		)
+	try:
+		amount = money(expected_mrr)
+		chance = Decimal(str(probability))
+		if not chance.is_finite() or not 0 <= chance <= 100:
+			raise ValueError("Probability must be between 0 and 100")
+		month = month_key(closing_month)
+	except (ValueError, InvalidOperation) as error:
+		frappe.throw(str(error) or _("Invalid forecast inputs"), frappe.ValidationError)
+	doc.expected_deal_value = float(amount)
+	doc.probability = float(chance)
+	doc.expected_closure_date = month
+	doc.save()
+	return {"name": doc.name, "modified": str(doc.modified)}
+
+
+@frappe.whitelist()
+def get_call_cost(name: str):
+	identity()
+	doc = frappe.get_doc("CRM Call Log", name)
+	doc.check_permission("read")
+	parents = [(doc.get("reference_doctype"), doc.get("reference_docname"))]
+	parents.extend((row.get("link_doctype"), row.get("link_name")) for row in doc.get("links") or [])
+	for doctype, parent in parents:
+		if (
+			doctype in ("CRM Lead", "CRM Deal")
+			and parent
+			and not frappe.has_permission(doctype, "read", parent)
+		):
+			frappe.throw(_("Not permitted to view this call"), frappe.PermissionError)
+	return load_call_cost(doc)

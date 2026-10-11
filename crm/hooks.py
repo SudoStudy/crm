@@ -239,6 +239,9 @@ override_doctype_class = {
 # Hook on document methods and events
 
 doc_events = {
+	"CRM Call Log": {
+		"validate": ["crm.performance.call_costs.protect_cost_fields"],
+	},
 	"Contact": {
 		"validate": ["crm.api.contact.validate"],
 	},
@@ -322,7 +325,10 @@ doc_events = {
 # ---------------
 
 scheduler_events = {
-	"hourly": ["crm.automation.events.emit_overdue_tasks"],
+	"hourly": [
+		"crm.automation.events.emit_overdue_tasks",
+		"crm.performance.call_costs.reconcile_pending_costs",
+	],
 	"daily": [
 		"crm.fcrm.doctype.crm_invitation.crm_invitation.expire_invitations",
 		"crm.fcrm.doctype.crm_view_settings.crm_view_settings.clear_old_versions",

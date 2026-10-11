@@ -244,7 +244,7 @@
                   coverage
                 }}</strong></span
               ><span class="text-ink-gray-5">{{
-                __('All open deals · expected MRR × probability')
+                __('Open deals closing in period · expected MRR × probability')
               }}</span>
             </div>
             <div
@@ -269,6 +269,47 @@
               >
             </div>
           </section>
+          <section
+            v-if="summary.calling_costs"
+            aria-label="Platform calling costs"
+            class="mt-4 rounded-lg border border-outline-gray-1 p-4"
+          >
+            <div class="flex flex-wrap items-center gap-x-8 gap-y-3">
+              <div>
+                <p class="text-xs text-ink-gray-5">{{ __('Twilio spend') }}</p>
+                <p class="mt-1 text-lg font-semibold tabular-nums">
+                  {{ callingSpend
+                  }}<span
+                    v-if="!summary.calling_costs.complete"
+                    class="ml-2 text-xs font-normal text-ink-gray-5"
+                    >{{ __('known so far') }}</span
+                  >
+                </p>
+              </div>
+              <div>
+                <p class="text-xs text-ink-gray-5">
+                  {{ __('Calls awaiting billing') }}
+                </p>
+                <p class="mt-1 text-lg font-semibold tabular-nums">
+                  {{ summary.calling_costs.pending_calls }}
+                </p>
+              </div>
+            </div>
+            <p class="mt-2 text-xs text-ink-gray-5">
+              {{
+                __(
+                  'Shared team cost · selected period · platform Twilio voice calls only. Excludes AI calls, number rental and recording/storage fees.',
+                )
+              }}
+            </p>
+            <p
+              v-if="summary.calling_costs.non_usd_calls"
+              class="mt-1 text-xs text-ink-gray-5"
+            >
+              {{ summary.calling_costs.non_usd_calls }}
+              {{ __('non-USD calls excluded; no conversion assumed.') }}
+            </p>
+          </section>
           <section aria-labelledby="performance-deals-title" class="mt-6">
             <div class="mb-3 flex items-center justify-between gap-3">
               <h2 id="performance-deals-title" class="text-sm font-semibold">
@@ -291,12 +332,16 @@
                     <th class="text-right">{{ __('Expected MRR (USD)') }}</th>
                     <th class="text-right">{{ __('Probability') }}</th>
                     <th class="text-right">{{ __('Contribution (USD)') }}</th>
+                    <th>{{ __('Expected closing month') }}</th>
                     <th>{{ __('Won on') }}</th>
+                    <th>
+                      <span class="sr-only">{{ __('Actions') }}</span>
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr v-if="!summary.deals.length">
-                    <td colspan="6" class="text-center text-ink-gray-5">
+                    <td colspan="8" class="text-center text-ink-gray-5">
                       {{ __('No contributing deals for this selection.') }}
                     </td>
                   </tr>
@@ -330,11 +375,29 @@
                         money(deal.kind === 'won' ? deal.amount : deal.weighted)
                       }}
                       <span class="text-xs text-ink-gray-5">{{
-                        deal.kind === 'won' ? __('actual') : __('weighted')
+                        deal.kind === 'won'
+                          ? __('actual')
+                          : deal.kind === 'unscheduled'
+                            ? __('needs month')
+                            : __('weighted')
                       }}</span>
                     </td>
                     <td class="text-xs text-ink-gray-5">
+                      {{
+                        deal.expected_close_month
+                          ? periodLabel(deal.expected_close_month)
+                          : '—'
+                      }}
+                    </td>
+                    <td class="text-xs text-ink-gray-5">
                       {{ deal.won_at || '—' }}
+                    </td>
+                    <td>
+                      <CRMButton
+                        v-if="deal.can_edit_forecast && deal.kind !== 'won'"
+                        @click="editingForecast = deal"
+                        >{{ __('Edit forecast') }}</CRMButton
+                      >
                     </td>
                   </tr>
                 </tbody>
@@ -487,6 +550,13 @@
       @close="showTarget = false"
       @saved="targetSaved"
     />
+    <ForecastDialog
+      v-if="editingForecast"
+      :key="editingForecast.name"
+      :deal="editingForecast"
+      @close="editingForecast = null"
+      @saved="forecastSaved"
+    />
   </div>
 </template>
 <script setup>
@@ -496,6 +566,7 @@ import { Button as CRMButton } from 'frappe-ui'
 import LayoutHeader from '@/components/LayoutHeader.vue'
 import ActivityList from '@/components/Performance/ActivityList.vue'
 import TargetDialog from '@/components/Performance/TargetDialog.vue'
+import ForecastDialog from '@/components/Performance/ForecastDialog.vue'
 import { usePerformance } from '@/composables/usePerformance'
 import {
   money,
@@ -523,6 +594,13 @@ const {
   activityPage,
 } = usePerformance()
 const showTarget = ref(false)
+const callingSpend = computed(() => {
+  const costs = summary.value?.calling_costs
+  return costs
+    ? `$${(Number(costs.confirmed_amount) + Number(costs.known_partial_amount)).toFixed(4)}`
+    : '—'
+})
+const editingForecast = ref(null)
 const activityTypes = [
   { value: 'all', label: 'All activity' },
   { value: 'call', label: 'Calls' },
@@ -566,6 +644,7 @@ const coverage = computed(() =>
 )
 watch(filters, () => {
   showTarget.value = false
+  editingForecast.value = null
 })
 function navigate(direction) {
   updateFilters({
@@ -578,6 +657,10 @@ function selectMonth(event) {
 }
 function targetSaved() {
   showTarget.value = false
+  loadSummary()
+}
+function forecastSaved() {
+  editingForecast.value = null
   loadSummary()
 }
 </script>

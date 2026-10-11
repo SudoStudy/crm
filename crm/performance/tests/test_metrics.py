@@ -13,6 +13,7 @@ class MetricsTests(unittest.TestCase):
 			deal_value=0,
 			expected_deal_value=900,
 			probability=50,
+			expected_closure_date="2026-10-20",
 			status_change_log=[dict(idx=1, from_type="Won", from_date="2026-10-03")],
 			**values,
 		)
@@ -107,6 +108,46 @@ class MetricsTests(unittest.TestCase):
 		self.assertIsNone(result["progress"])
 		self.assertIsNone(result["coverage"])
 		self.assertIn("Target is zero; progress and coverage are not calculated.", result["warnings"])
+
+	def test_pipeline_only_counts_expected_closing_period(self):
+		for closing, included in (
+			("2026-10-01", True),
+			("2026-10-31", True),
+			("2026-11-01", False),
+			("2026-09-30", False),
+		):
+			d = self.deal()
+			d.update(status_type="Open", expected_closure_date=closing)
+			row, _ = metrics.deal_contribution(d, "2026-10-01", "2026-11-01")
+			self.assertEqual(row is not None, included)
+
+	def test_missing_closing_month_remains_editable_but_not_counted(self):
+		d = self.deal()
+		d.update(status_type="Open", expected_closure_date=None)
+		row, warning = metrics.deal_contribution(d, "2026-10-01", "2026-11-01")
+		self.assertEqual(row["kind"], "unscheduled")
+		self.assertEqual(row["weighted"], 0)
+		self.assertIsNone(row["expected_close_month"])
+		self.assertIn("closing month", warning)
+
+	def test_explicit_zero_probability_stays_zero(self):
+		d = self.deal()
+		d.update(status_type="Open", probability=0)
+		row, _ = metrics.deal_contribution(d, "2026-10-01", "2026-11-01")
+		self.assertEqual(row["weighted"], 0)
+		self.assertEqual(row["probability"], 0)
+
+	def test_quarter_includes_each_closing_month_but_not_next_quarter(self):
+		for closing, included in (
+			("2026-10-31", True),
+			("2026-11-01", True),
+			("2026-12-31", True),
+			("2027-01-01", False),
+		):
+			d = self.deal()
+			d.update(status_type="Open", expected_closure_date=closing)
+			row, _ = metrics.deal_contribution(d, "2026-10-01", "2027-01-01")
+			self.assertEqual(row is not None, included)
 
 
 if __name__ == "__main__":

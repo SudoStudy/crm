@@ -15,6 +15,8 @@ def before_install():
 
 
 def after_install(force=False):
+	from crm.patches.v1_0.performance_call_costs import execute as install_call_cost_schema
+
 	add_default_lead_statuses()
 	add_default_deal_statuses()
 	add_default_communication_statuses()
@@ -32,6 +34,7 @@ def after_install(force=False):
 	create_default_manager_dashboard(force)
 	create_assignment_rule_custom_fields()
 	add_assignment_rule_property_setters()
+	install_call_cost_schema()
 	frappe.db.commit()
 
 
