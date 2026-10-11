@@ -38,6 +38,15 @@ const summary = {
   coverage: 2.5,
   warnings: [],
   targets: [{ month: '2026-10-01', amount: 300, source: 'monthly' }],
+  calling_costs: {
+    currency: 'USD',
+    confirmed_amount: 0.12,
+    known_partial_amount: 0.07,
+    pending_calls: 2,
+    non_usd_calls: 0,
+    complete: false,
+    call_count: 3,
+  },
   deals: [
     {
       name: 'DEAL-1',
@@ -145,6 +154,9 @@ describe('Native Performance page', () => {
     await mount({ salesperson: 'other@example.com' })
     expect(root.textContent).toContain('Riverside Academy')
     expect(root.textContent).toContain('Expected MRR (USD)')
+    expect(root.textContent).toContain('Twilio spend')
+    expect(root.textContent).toContain('$0.1900')
+    expect(root.textContent).toContain('Calls awaiting billing')
     const cells = [...root.querySelectorAll('tbody tr td')].map((cell) =>
       cell.textContent.trim(),
     )
@@ -154,7 +166,9 @@ describe('Native Performance page', () => {
       '$500',
       '100%',
       '$120 actual',
+      '—',
       '2026-10-05',
+      '',
     ])
     expect(root.querySelector('a[href="/deals/DEAL-1"]')).not.toBeNull()
     expect(button('Edit target')).toBeUndefined()
@@ -184,6 +198,53 @@ describe('Native Performance page', () => {
       period: 'quarter',
       anchor: '2027-01-01',
     })
+  })
+
+  it('edits owned forecast with zero probability and an explicit closing month', async () => {
+    mocks.call.mockImplementation((m) =>
+      Promise.resolve(
+        m.endsWith('get_context')
+          ? context
+          : m.endsWith('get_activity')
+            ? activity
+            : {
+                ...summary,
+                deals: [
+                  {
+                    ...summary.deals[0],
+                    kind: 'pipeline',
+                    can_edit_forecast: true,
+                    modified: '2026-10-10 12:00:00',
+                    expected_close_month: '2026-11-01',
+                  },
+                ],
+              },
+      ),
+    )
+    await mount()
+    button('Edit forecast').click()
+    await settle()
+    for (const [label, value] of [
+      ['Expected MRR (USD / month)', '350'],
+      ['Probability (%)', '0'],
+      ['Expected closing month', '2026-12'],
+    ]) {
+      const input = document.querySelector(`[aria-label="${label}"]`)
+      input.value = value
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+    }
+    button('Save forecast').click()
+    await settle()
+    expect(mocks.call).toHaveBeenCalledWith(
+      'crm.api.performance.update_forecast',
+      {
+        deal: 'DEAL-1',
+        expected_mrr: 350,
+        probability: 0,
+        closing_month: '2026-12-01',
+        modified: '2026-10-10 12:00:00',
+      },
+    )
   })
   it('discards a late response after a period change', async () => {
     let resolveOld

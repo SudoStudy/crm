@@ -76,6 +76,7 @@
           :theme="statusColorMap[call.status]"
         />
       </div>
+      <CallCost :name="call.name" />
       <div
         v-if="
           call.show_recording &&
@@ -100,6 +101,7 @@ import CalendarIcon from '@/components/Icons/CalendarIcon.vue'
 import DurationIcon from '@/components/Icons/DurationIcon.vue'
 import MultipleAvatar from '@/components/MultipleAvatar.vue'
 import AudioPlayer from '@/components/Activities/AudioPlayer.vue'
+import CallCost from '@/components/Activities/CallCost.vue'
 import CallLogDetailModal from '@/components/Modals/CallLogDetailModal.vue'
 import TimelineTimestamp from '@/components/Activities/TimelineTimestamp.vue'
 import { getCallStatusLabel, statusColorMap } from '@/utils/callLog.js'

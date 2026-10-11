@@ -50,6 +50,11 @@
             />
           </div>
         </div>
+        <CallCost
+          v-if="show && callLog?.data?.name"
+          :name="callLog.data.name"
+          class="mb-3"
+        />
         <div class="flex flex-col gap-3.5">
           <div
             v-for="field in detailFields"
@@ -170,6 +175,7 @@
 
 <script setup>
 import EditIcon from '@/components/Icons/EditIcon.vue'
+import CallCost from '@/components/Activities/CallCost.vue'
 import ArrowUpRightIcon from '@/components/Icons/ArrowUpRightIcon.vue'
 import DurationIcon from '@/components/Icons/DurationIcon.vue'
 import ContactsIcon from '@/components/Icons/ContactsIcon.vue'
