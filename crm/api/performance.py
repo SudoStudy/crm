@@ -220,7 +220,9 @@ def set_target(salesperson: str, month: str, amount: int | float | str, recurrin
 
 
 @frappe.whitelist(methods=["POST"])
-def update_forecast(deal: str, expected_mrr, probability, closing_month: str, modified: str):
+def update_forecast(
+	deal: str, expected_mrr: float | str, probability: float | str, closing_month: str, modified: str
+):
 	"""Edit only forecast inputs, preserving native authorization and Versions."""
 	user, manager = identity()
 	doc = frappe.get_doc("CRM Deal", deal, for_update=True)

@@ -21,6 +21,7 @@ def leg(sid, price="-0.12", currency="USD", status="completed", parent=None):
 class CallCostTests(unittest.TestCase):
 	def setUp(self):
 		fake.PermissionError = PermissionError
+		fake._ = lambda message: message
 		fake.get_all.reset_mock()
 		fake.get_all.side_effect = None
 		fake.db.get_value.return_value = None

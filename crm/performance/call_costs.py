@@ -331,4 +331,6 @@ def protect_cost_fields(doc, method=None):
 		):
 			changed = previous.get_value(field) != doc.get_value(field)
 		if changed and not (old in (None, "", 0) and new in (None, "", 0)):
-			frappe.throw("Voice cost metadata is maintained by reconciliation.", frappe.PermissionError)
+			frappe.throw(
+				frappe._("Voice cost metadata is maintained by reconciliation."), frappe.PermissionError
+			)
