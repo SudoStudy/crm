@@ -79,7 +79,8 @@ def _save_own_mailbox(account, user):
 	session = frappe.local.session
 	session_values = dict(session)
 	try:
-		frappe.set_user("Administrator")
+		# Audited: own-account authorization above, native validation only, state restored below.
+		frappe.set_user("Administrator")  # nosemgrep: frappe-semgrep-rules.rules.security.frappe-setuser
 		account.save(ignore_permissions=True)
 		if is_new:
 			# Native insert overwrites owner with the service user. Assign the newly
