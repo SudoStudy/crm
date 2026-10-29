@@ -8,6 +8,10 @@ sudo apt update
 sudo apt remove mysql-server mysql-client
 sudo apt install libcups2-dev redis-server mariadb-client libmariadb-dev
 
+# Bench also invokes the client internally against this isolated non-TLS service.
+printf '[client]\nskip-ssl\n' > ~/.my.cnf
+chmod 600 ~/.my.cnf
+
 # Frappe (and erpnext) branch to test against; set by CI matrix, defaults to develop.
 FRAPPE_BRANCH="${FRAPPE_BRANCH:-develop}"
 
