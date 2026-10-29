@@ -150,13 +150,14 @@ def main():
 				raise RuntimeError("Site updated, but sibling bench app versions differ; inspect Cloud.")
 			with urllib.request.urlopen(
 				urllib.request.Request(
-					"https://sales.sudostudy.com/crm", headers={"User-Agent": "SudoStudy-CRM-Deployment/1.0"}
+					"https://sales.sudostudy.com/login",
+					headers={"User-Agent": "SudoStudy-CRM-Deployment/1.0"},
 				),
 				timeout=30,
 			) as response:
 				if response.status != 200:
-					raise RuntimeError("The CRM page did not return success.")
-			print(f"Verified live CRM {sha}, sibling apps preserved, CRM page available.")
+					raise RuntimeError("The CRM sign-in page did not return success.")
+			print(f"Verified live CRM {sha}, sibling apps preserved, CRM sign-in page available.")
 			return
 	raise RuntimeError("Live version was not verified within one hour. Inspect Cloud before any retry.")
 

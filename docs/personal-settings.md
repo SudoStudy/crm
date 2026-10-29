@@ -48,7 +48,7 @@ It rejects pending app removals, source changes, additional sites, concurrent
 Cloud deployments, and parallel native Cloud auto-deploy. It requests the actual
 site update with backups and patch validation enabled. Success requires the
 site's installed CRM hash to match the tested commit, all sibling app hashes to
-remain unchanged, and the public CRM page to respond successfully.
+remain unchanged, and the public CRM sign-in page to respond successfully.
 
 A deployment request is sent once. If it times out, check the Cloud Deploys and
 site Updates pages before retrying; the original request may have committed.
