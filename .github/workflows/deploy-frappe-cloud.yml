@@ -1,0 +1,45 @@
+name: Deploy CRM to Frappe Cloud
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: crm-production-deployment
+  cancel-in-progress: false
+
+jobs:
+  server:
+    uses: ./.github/workflows/server-tests.yml
+  frontend:
+    uses: ./.github/workflows/frontend-tests.yml
+  migration:
+    uses: ./.github/workflows/migration-test.yml
+    with:
+      base-sha: ${{ github.event.before || '' }}
+  performance:
+    uses: ./.github/workflows/native-performance.yml
+  deploy:
+    needs: [server, frontend, migration, performance]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 70
+    environment: production
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.14'
+      - name: Deploy the tested commit and verify the live site
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FRAPPE_CLOUD_API_KEY: ${{ secrets.FRAPPE_CLOUD_API_KEY }}
+          FRAPPE_CLOUD_API_SECRET: ${{ secrets.FRAPPE_CLOUD_API_SECRET }}
+          DEPLOY_SHA: ${{ github.sha }}
+        run: python .github/scripts/deploy_frappe_cloud.py

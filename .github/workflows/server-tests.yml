@@ -1,6 +1,7 @@
 name: Server
 
 on:
+    workflow_call:
     pull_request:
         paths-ignore:
             - "**.css"
@@ -17,7 +18,7 @@ env:
     CRM_BRANCH: ${{ github.base_ref || github.ref_name }}
 
 concurrency:
-    group: develop-crm-${{ github.event.number }}
+    group: server-${{ github.workflow }}-${{ github.event_name }}-${{ github.event.number || github.ref }}
     cancel-in-progress: true
 
 jobs:

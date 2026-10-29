@@ -124,9 +124,11 @@ import {
   Combobox,
   createDocumentResource,
   createListResource,
+  createResource,
   toast,
 } from 'frappe-ui'
 import { computed, inject } from 'vue'
+import { usersStore } from '@/stores/users'
 
 const emit = defineEmits(['updateStep'])
 
@@ -134,13 +136,24 @@ const { user: sessionUser } = inject('session')
 
 const user = createDocumentResource({ doctype: 'User', name: sessionUser })
 
-const emails = createListResource({
-  doctype: 'Email Account',
-  cache: 'Outgoing Email Accounts',
-  fields: ['name', 'email_id'],
-  filters: { enable_outgoing: 1 },
-  auto: true,
-})
+const { isManager } = usersStore()
+const emails = isManager()
+  ? createListResource({
+      doctype: 'Email Account',
+      cache: 'Outgoing Email Accounts',
+      fields: ['name', 'email_id'],
+      filters: { enable_outgoing: 1 },
+      auto: true,
+    })
+  : createResource({
+      url: 'crm.api.personal_settings.get_personal_settings',
+      auto: true,
+      transform(data) {
+        return data.mailbox.enable_outgoing
+          ? [{ name: data.mailbox.name, email_id: data.mailbox.email_id }]
+          : []
+      },
+    })
 
 const filteredEmails = computed(() => {
   if (!emails.data) return []

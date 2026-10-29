@@ -4,6 +4,12 @@ name: Migration
 # to the PR code. Catches broken patches / schema changes before release.
 
 on:
+    workflow_call:
+        inputs:
+            base-sha:
+                type: string
+                required: false
+                default: ""
     pull_request:
         paths-ignore:
             - "**.css"
@@ -35,6 +41,7 @@ jobs:
                 options: --health-cmd="mysqladmin ping" --health-interval=5s --health-timeout=2s --health-retries=3
 
         env:
+            BASE_SHA: ${{ inputs.base-sha || github.event.pull_request.base.sha || github.event.before }}
             BASE_BRANCH: ${{ github.base_ref || github.ref_name }}
             BASE_REPOSITORY: ${{ github.event.pull_request.base.repo.clone_url || format('{0}/{1}.git', github.server_url, github.repository) }}
             BENCH_PATH: /home/runner/frappe-bench
@@ -74,12 +81,15 @@ jobs:
             - name: Configure database
               run: |
                   echo "127.0.0.1 test_site" | sudo tee -a /etc/hosts
-                  mariadb --host 127.0.0.1 --port 3306 -u root -proot -e "SET GLOBAL character_set_server = 'utf8mb4'"
-                  mariadb --host 127.0.0.1 --port 3306 -u root -proot -e "SET GLOBAL collation_server = 'utf8mb4_unicode_ci'"
-                  mariadb --host 127.0.0.1 --port 3306 -u root -proot -e "CREATE USER 'test_frappe'@'localhost' IDENTIFIED BY 'test_frappe'"
-                  mariadb --host 127.0.0.1 --port 3306 -u root -proot -e "CREATE DATABASE test_frappe"
-                  mariadb --host 127.0.0.1 --port 3306 -u root -proot -e "GRANT ALL PRIVILEGES ON \`test_frappe\`.* TO 'test_frappe'@'localhost'"
-                  mariadb --host 127.0.0.1 --port 3306 -u root -proot -e "FLUSH PRIVILEGES"
+                  # Bench invokes the client internally against the isolated non-TLS service.
+                  printf '[client]\nskip-ssl\n' > ~/.my.cnf
+                  chmod 600 ~/.my.cnf
+                  mariadb --skip-ssl --host 127.0.0.1 --port 3306 -u root -proot -e "SET GLOBAL character_set_server = 'utf8mb4'"
+                  mariadb --skip-ssl --host 127.0.0.1 --port 3306 -u root -proot -e "SET GLOBAL collation_server = 'utf8mb4_unicode_ci'"
+                  mariadb --skip-ssl --host 127.0.0.1 --port 3306 -u root -proot -e "CREATE USER 'test_frappe'@'localhost' IDENTIFIED BY 'test_frappe'"
+                  mariadb --skip-ssl --host 127.0.0.1 --port 3306 -u root -proot -e "CREATE DATABASE test_frappe"
+                  mariadb --skip-ssl --host 127.0.0.1 --port 3306 -u root -proot -e "GRANT ALL PRIVILEGES ON \`test_frappe\`.* TO 'test_frappe'@'localhost'"
+                  mariadb --skip-ssl --host 127.0.0.1 --port 3306 -u root -proot -e "FLUSH PRIVILEGES"
 
             - name: Init bench with frappe
               run: |
@@ -94,6 +104,14 @@ jobs:
                   cp "${GITHUB_WORKSPACE}/pr-crm/.github/helper/site_config.json" sites/test_site/site_config.json
                   sed -i 's/watch:/# watch:/g; s/schedule:/# schedule:/g; s/socketio:/# socketio:/g; s/redis_socketio:/# redis_socketio:/g' Procfile
                   bench get-app crm "$BASE_REPOSITORY" --branch "$BASE_BRANCH"
+                  # Install the exact pre-upgrade revision, even if main advanced.
+                  if [ -n "$BASE_SHA" ] && [ "$BASE_SHA" != "0000000000000000000000000000000000000000" ]; then
+                      git -C apps/crm fetch --depth=1 "$BASE_REPOSITORY" "$BASE_SHA"
+                      git -C apps/crm checkout --detach FETCH_HEAD
+                  else
+                      git -C apps/crm fetch --depth=2 "$BASE_REPOSITORY" "$BASE_BRANCH"
+                      git -C apps/crm checkout --detach "FETCH_HEAD^"
+                  fi
                   bench setup requirements --dev
                   bench start &>> "$BENCH_PATH/bench_start.log" &
                   CI=Yes bench build --app frappe &

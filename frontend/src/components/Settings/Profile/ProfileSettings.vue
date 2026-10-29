@@ -108,6 +108,34 @@
             @click="emit('updateStep', 'user-email-settings')"
           />
         </div>
+        <div class="flex items-center justify-between gap-4 mt-6">
+          <div class="flex flex-col gap-1">
+            <span class="text-base-medium text-ink-gray-8">{{
+              __('Personal mailbox')
+            }}</span>
+            <span class="text-p-sm text-ink-gray-6">{{
+              __('Connect your own Google email account.')
+            }}</span>
+          </div>
+          <Button
+            :label="__('Connect mailbox')"
+            @click="emit('updateStep', 'personal-mailbox-settings')"
+          />
+        </div>
+        <div class="flex items-center justify-between gap-4 mt-6">
+          <div class="flex flex-col gap-1">
+            <span class="text-base-medium text-ink-gray-8">{{
+              __('API access')
+            }}</span>
+            <span class="text-p-sm text-ink-gray-6">{{
+              __('Manage API credentials for your own CRM account.')
+            }}</span>
+          </div>
+          <Button
+            :label="__('Manage API credentials')"
+            @click="emit('updateStep', 'personal-api-settings')"
+          />
+        </div>
         <div class="flex items-center justify-between mt-6">
           <div class="flex flex-col gap-1">
             <span class="text-base-medium text-ink-gray-8">
