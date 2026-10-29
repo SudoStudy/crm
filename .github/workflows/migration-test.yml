@@ -106,10 +106,10 @@ jobs:
                   bench get-app crm "$BASE_REPOSITORY" --branch "$BASE_BRANCH"
                   # Install the exact pre-upgrade revision, even if main advanced.
                   if [ -n "$BASE_SHA" ] && [ "$BASE_SHA" != "0000000000000000000000000000000000000000" ]; then
-                      git -C apps/crm fetch --depth=1 origin "$BASE_SHA"
+                      git -C apps/crm fetch --depth=1 "$BASE_REPOSITORY" "$BASE_SHA"
                       git -C apps/crm checkout --detach FETCH_HEAD
                   else
-                      git -C apps/crm fetch --depth=2 origin "$BASE_BRANCH"
+                      git -C apps/crm fetch --depth=2 "$BASE_REPOSITORY" "$BASE_BRANCH"
                       git -C apps/crm checkout --detach "FETCH_HEAD^"
                   fi
                   bench setup requirements --dev
