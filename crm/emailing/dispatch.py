@@ -343,7 +343,9 @@ def dispatch_email(name):
 		# Publish the terminal outcome before another worker considers later sequence steps.
 		frappe.db.commit()  # nosemgrep: frappe-semgrep-rules.rules.frappe-manual-commit
 	except Exception:
-		if frappe.in_test and frappe.flags.get("crm_email_raise_test_errors"):
+		if getattr(frappe, "in_test", frappe.flags.get("in_test")) and frappe.flags.get(
+			"crm_email_raise_test_errors"
+		):
 			raise
 		frappe.flags.crm_email_dispatch = None
 		# Do not expose provider exception text, message bodies or credentials.
