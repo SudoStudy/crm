@@ -5,7 +5,7 @@
       :extensions="extensions"
       :placeholder="placeholder"
       :editable="editable"
-      :upload-function="(file) => uploadFile(file)"
+      :upload-function="upload"
       @change="(val) => emit('change', val)"
     >
       <EditorFixedMenu
@@ -32,7 +32,7 @@ import {
   bubbleToolbar,
   uploadFile,
 } from '@/components/editor/config'
-import { ref, watch } from 'vue'
+import { onBeforeUnmount, ref, watch } from 'vue'
 
 const props = defineProps({
   content: { type: String, default: '' },
@@ -43,7 +43,22 @@ const props = defineProps({
   bubbleMenu: { type: Boolean, default: true },
 })
 
-const emit = defineEmits(['change'])
+const emit = defineEmits(['change', 'uploading'])
+let active = true
+let uploads = 0
+onBeforeUnmount(() => {
+  active = false
+})
+async function upload(file) {
+  uploads++
+  emit('uploading', true)
+  try {
+    return await uploadFile(file)
+  } finally {
+    uploads--
+    if (active) emit('uploading', uploads > 0)
+  }
+}
 
 const content = ref(props.content ?? '')
 
