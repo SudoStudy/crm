@@ -5,6 +5,12 @@ on:
   pull_request:
     paths:
       - 'crm/api/performance.py'
+      - 'crm/api/scheduled_email.py'
+      - 'crm/api/test_scheduled_email.py'
+      - 'crm/emailing/**'
+      - 'crm/fcrm/doctype/crm_email_draft/**'
+      - 'crm/fcrm/doctype/crm_email_sequence/**'
+      - 'crm/fcrm/doctype/crm_email_sequence_step/**'
       - 'crm/performance/**'
       - 'crm/permissions/sales_targets.py'
       - 'crm/hooks.py'
@@ -102,3 +108,6 @@ jobs:
         run: |
           bench --site test_site run-tests --module crm.performance.integration.test_performance
           bench --site test_site run-tests --module crm.performance.integration.test_call_costs
+      - name: Test scheduled email ownership, dispatch and reply cancellation
+        working-directory: /home/runner/frappe-bench
+        run: bench --site test_site run-tests --module crm.api.test_scheduled_email

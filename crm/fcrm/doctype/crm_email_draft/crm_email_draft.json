@@ -1,0 +1,163 @@
+{
+ "doctype": "DocType",
+ "name": "CRM Email Draft",
+ "module": "FCRM",
+ "autoname": "hash",
+ "engine": "InnoDB",
+ "field_order": [
+  "reference_doctype",
+  "reference_name",
+  "sender",
+  "recipients",
+  "cc",
+  "bcc",
+  "subject",
+  "content",
+  "attachments",
+  "stop_on_reply",
+  "status",
+  "send_at",
+  "timezone",
+  "scheduled_at",
+  "sequence_name",
+  "enrollment_id",
+  "communication",
+  "last_error",
+  "dispatch_started_at"
+ ],
+ "fields": [
+  {
+   "fieldname": "reference_doctype",
+   "fieldtype": "Link",
+   "label": "Reference Doctype",
+   "options": "DocType",
+   "reqd": 1
+  },
+  {
+   "fieldname": "reference_name",
+   "fieldtype": "Dynamic Link",
+   "label": "Reference Name",
+   "options": "reference_doctype",
+   "reqd": 1
+  },
+  {
+   "fieldname": "sender",
+   "fieldtype": "Data",
+   "label": "Sender"
+  },
+  {
+   "fieldname": "recipients",
+   "fieldtype": "Small Text",
+   "label": "Recipients"
+  },
+  {
+   "fieldname": "cc",
+   "fieldtype": "Small Text",
+   "label": "Cc"
+  },
+  {
+   "fieldname": "bcc",
+   "fieldtype": "Small Text",
+   "label": "Bcc"
+  },
+  {
+   "fieldname": "subject",
+   "fieldtype": "Data",
+   "label": "Subject"
+  },
+  {
+   "fieldname": "content",
+   "fieldtype": "Text Editor",
+   "label": "Content"
+  },
+  {
+   "fieldname": "attachments",
+   "fieldtype": "Long Text",
+   "label": "Attachments"
+  },
+  {
+   "fieldname": "stop_on_reply",
+   "fieldtype": "Check",
+   "label": "Stop On Reply",
+   "default": "1"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Draft\nScheduled\nSending\nSent\nCanceled\nError",
+   "default": "Draft",
+   "read_only": 1
+  },
+  {
+   "fieldname": "send_at",
+   "fieldtype": "Datetime",
+   "label": "Send At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "timezone",
+   "fieldtype": "Data",
+   "label": "Timezone",
+   "read_only": 1
+  },
+  {
+   "fieldname": "scheduled_at",
+   "fieldtype": "Datetime",
+   "label": "Scheduled At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sequence_name",
+   "fieldtype": "Link",
+   "label": "Sequence Name",
+   "options": "CRM Email Sequence",
+   "read_only": 1
+  },
+  {
+   "fieldname": "enrollment_id",
+   "fieldtype": "Data",
+   "label": "Enrollment Id",
+   "read_only": 1
+  },
+  {
+   "fieldname": "communication",
+   "fieldtype": "Link",
+   "label": "Communication",
+   "options": "Communication",
+   "read_only": 1
+  },
+  {
+   "fieldname": "last_error",
+   "fieldtype": "Small Text",
+   "label": "Last Error",
+   "read_only": 1
+  },
+  {
+   "fieldname": "dispatch_started_at",
+   "fieldtype": "Datetime",
+   "label": "Dispatch Started At",
+   "read_only": 1
+  }
+ ],
+ "permissions": [
+  {
+   "role": "Sales User",
+   "read": 1,
+   "select": 1
+  },
+  {
+   "role": "Sales Manager",
+   "read": 1,
+   "select": 1
+  },
+  {
+   "role": "System Manager",
+   "read": 1,
+   "select": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "track_changes": 1
+}

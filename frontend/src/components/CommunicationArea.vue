@@ -1,4 +1,11 @@
 <template>
+  <EmailWorkspace
+    v-if="doc.name && ['CRM Lead', 'CRM Deal'].includes(doctype)"
+    :reference-doctype="doctype"
+    :reference-name="String(doc.name)"
+    :default-recipient="doc.email || ''"
+    @changed="reload = true"
+  />
   <div class="flex justify-between gap-3 border-t px-4 py-2.5">
     <div class="flex gap-1.5">
       <Button
@@ -88,6 +95,7 @@
 
 <script setup>
 import EmailEditor from '@/components/EmailEditor.vue'
+import EmailWorkspace from '@/components/EmailWorkspace/EmailWorkspace.vue'
 import CommentBox from '@/components/CommentBox.vue'
 import CommentIcon from '@/components/Icons/CommentIcon.vue'
 import Email2Icon from '@/components/Icons/Email2Icon.vue'
