@@ -1,3 +1,5 @@
+import frappe
+
 app_name = "crm"
 app_title = "Frappe CRM"
 app_publisher = "Frappe Technologies Pvt. Ltd."
@@ -234,10 +236,14 @@ automation_events = [
 # Override standard doctype classes
 
 override_doctype_class = {
-	"Email Queue": "crm.emailing.dispatch.ManagedEmailQueue",
 	"Contact": "crm.overrides.contact.CustomContact",
 	"Email Template": "crm.overrides.email_template.CustomEmailTemplate",
 }
+
+# Compose with other installed apps on v16; v15 has no controller mixin hook.
+extend_doctype_class = {"Email Queue": ["crm.emailing.dispatch.ManagedEmailQueue"]}
+if int(frappe.__version__.split(".")[0]) < 16:
+	override_doctype_class["Email Queue"] = "crm.emailing.dispatch.ManagedEmailQueue"
 
 # Document Events
 # ---------------

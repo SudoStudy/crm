@@ -4,6 +4,7 @@ from datetime import timedelta
 from email.utils import getaddresses
 
 import frappe
+from frappe import _
 from frappe.email.doctype.email_queue.email_queue import EmailQueue
 from frappe.model.base_document import get_controller
 from frappe.utils import get_datetime, now_datetime
@@ -185,7 +186,7 @@ class ManagedEmailQueue(EmailQueue):
 		_ready(draft)
 		expected = v.sender_account(v.current_user(), draft.sender)
 		if self.get_email_account(raise_error=True).name != expected:
-			frappe.throw("The outgoing mailbox changed. Delivery was stopped for review.")
+			frappe.throw(_("The outgoing mailbox changed. Delivery was stopped for review."))
 		if draft.stop_on_reply and has_reply(draft):
 			draft.status, draft.last_error = (
 				"Canceled",
@@ -267,19 +268,22 @@ def dispatch_email(name):
 			return
 		# Fail closed if another installed app replaces this controller.
 		if not issubclass(get_controller("Email Queue"), ManagedEmailQueue):
-			frappe.throw("The reply-aware email queue guard is unavailable. Delivery stopped.")
-		frappe.set_user(draft.owner)
+			frappe.throw(_("The reply-aware email queue guard is unavailable. Delivery stopped."))
+		# Recheck live customer and mailbox permissions as the persisted draft owner.
+		frappe.set_user(draft.owner)  # nosemgrep: frappe-semgrep-rules.rules.security.frappe-setuser
 		from crm.api.scheduled_email import _ready
 
 		if is_suppressed(draft):
 			_cancel_suppressed(draft)
-			frappe.db.commit()
+			# Persist unsubscribe cancellation and release mailbox locks before another worker can claim it.
+			frappe.db.commit()  # nosemgrep: frappe-semgrep-rules.rules.frappe-manual-commit
 			return
 		_ready(draft)
 		if draft.stop_on_reply and has_reply(draft):
 			draft.status, draft.last_error = "Canceled", "Canceled because a reply was received."
 			v.save(draft)
-			frappe.db.commit()
+			# Persist reply cancellation before releasing this worker's mailbox claim.
+			frappe.db.commit()  # nosemgrep: frappe-semgrep-rules.rules.frappe-manual-commit
 			return
 		from frappe.core.doctype.communication.email import make
 
@@ -305,19 +309,21 @@ def dispatch_email(name):
 		v.save(draft)
 		# Commit the attempt marker BEFORE native queue creation or SMTP. Native
 		# queue itself commits while sending; all other queue entry points refuse it.
-		frappe.db.commit()
+		# The durable attempt marker must survive any SMTP crash or native queue internal commit.
+		frappe.db.commit()  # nosemgrep: frappe-semgrep-rules.rules.frappe-manual-commit
 		frappe.flags.crm_email_dispatch = draft.name
 		mail = communication.sendmail_input_dict()
 		mail["reply_to"] = draft.sender
 		queue = frappe.sendmail(now=False, **mail)
 		if not isinstance(queue, ManagedEmailQueue):
-			frappe.throw("The managed email queue could not be prepared. Delivery stopped.")
+			frappe.throw(_("The managed email queue could not be prepared. Delivery stopped."))
 		queue.send()
 		frappe.flags.crm_email_dispatch = None
 		frappe.get_doc("User", draft.owner, for_update=True)
 		draft = frappe.get_doc(DRAFT, name, for_update=True)
 		if draft.status == "Canceled":
-			frappe.db.commit()
+			# Persist last-moment reply cancellation after the native queue released its locks.
+			frappe.db.commit()  # nosemgrep: frappe-semgrep-rules.rules.frappe-manual-commit
 			return
 		queues = frappe.get_all(
 			"Email Queue", filters={"communication": communication.name}, fields=["name", "status"]
@@ -334,7 +340,8 @@ def dispatch_email(name):
 			_cancel_remaining(
 				draft, "Remaining follow-ups canceled because an earlier delivery needs review."
 			)
-		frappe.db.commit()
+		# Publish the terminal outcome before another worker considers later sequence steps.
+		frappe.db.commit()  # nosemgrep: frappe-semgrep-rules.rules.frappe-manual-commit
 	except Exception:
 		if frappe.in_test and frappe.flags.get("crm_email_raise_test_errors"):
 			raise
@@ -359,7 +366,9 @@ def dispatch_email(name):
 			_cancel_remaining(
 				draft, "Remaining follow-ups canceled because an earlier delivery needs review."
 			)
-			frappe.db.commit()
+			# Preserve the non-retryable failure outcome even after native transport commits.
+			frappe.db.commit()  # nosemgrep: frappe-semgrep-rules.rules.frappe-manual-commit
 	finally:
 		frappe.flags.crm_email_dispatch = None
-		frappe.set_user(previous_user)
+		# Restore the original worker identity on every delivery and failure path.
+		frappe.set_user(previous_user)  # nosemgrep: frappe-semgrep-rules.rules.security.frappe-setuser

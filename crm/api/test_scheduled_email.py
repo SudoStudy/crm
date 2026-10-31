@@ -268,7 +268,8 @@ class TestScheduledEmail(CRMTestCase):
 
 	def _make_due(self, draft):
 		frappe.db.set_value("CRM Email Draft", draft["name"], "send_at", v.utcnow() - timedelta(minutes=1))
-		frappe.db.commit()
+		# Native dispatch commits mid-send; publish the fixture or transition before exercising that path.
+		frappe.db.commit()  # nosemgrep: frappe-semgrep-rules.rules.frappe-manual-commit
 		return draft["name"]
 
 	def _transport(self):
@@ -384,7 +385,8 @@ class TestScheduledEmail(CRMTestCase):
 		paused = api.unschedule_draft(draft["name"], str(draft["modified"]))
 		self.assertEqual(paused["status"], "Draft")
 		self.assertIsNone(paused["send_at"])
-		frappe.db.commit()
+		# Native dispatch commits mid-send; publish the fixture or transition before exercising that path.
+		frappe.db.commit()  # nosemgrep: frappe-semgrep-rules.rules.frappe-manual-commit
 		with patch.object(dispatch.EmailQueue, "send") as send:
 			dispatch.dispatch_email(paused["name"])
 			send.assert_not_called()
@@ -480,7 +482,8 @@ class TestScheduledEmail(CRMTestCase):
 				frappe.set_user("Administrator")
 				barrier.wait(timeout=10)
 				dispatch.dispatch_email(draft["name"])
-				frappe.db.commit()
+				# Publish this worker transaction so the other database connection can observe its outcome.
+				frappe.db.commit()  # nosemgrep: frappe-semgrep-rules.rules.frappe-manual-commit
 			except Exception as error:
 				errors.append(type(error).__name__)
 			finally:
@@ -531,7 +534,8 @@ class TestScheduledEmail(CRMTestCase):
 				else:
 					started.set()
 					dispatch.dispatch_email(draft["name"])
-				frappe.db.commit()
+				# Publish this worker transaction so the other database connection can observe its outcome.
+				frappe.db.commit()  # nosemgrep: frappe-semgrep-rules.rules.frappe-manual-commit
 			except Exception as error:
 				errors.append(type(error).__name__)
 			finally:
@@ -621,7 +625,8 @@ class TestScheduledEmail(CRMTestCase):
 				else:
 					started.set()
 					dispatch.dispatch_email(draft["name"])
-				frappe.db.commit()
+				# Publish this worker transaction so the other database connection can observe its outcome.
+				frappe.db.commit()  # nosemgrep: frappe-semgrep-rules.rules.frappe-manual-commit
 			except Exception as error:
 				errors.append(type(error).__name__)
 			finally:
@@ -665,7 +670,8 @@ class TestScheduledEmail(CRMTestCase):
 			send.assert_not_called()
 		self.assertEqual(frappe.db.get_value("CRM Email Draft", second["name"], "status"), "Scheduled")
 		frappe.db.set_value("CRM Email Draft", first["name"], "status", "Sent")
-		frappe.db.commit()
+		# Native dispatch commits mid-send; publish the fixture or transition before exercising that path.
+		frappe.db.commit()  # nosemgrep: frappe-semgrep-rules.rules.frappe-manual-commit
 		server = self._transport()
 		with (
 			patch(

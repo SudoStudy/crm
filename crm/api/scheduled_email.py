@@ -38,7 +38,7 @@ def _sequence_public(doc):
 
 
 @frappe.whitelist()
-def get_workspace(reference_doctype, reference_name):
+def get_workspace(reference_doctype: str, reference_name: str) -> dict:
 	user = v.current_user()
 	v.reference(reference_doctype, reference_name)
 	filters = {"owner": user.name, "reference_doctype": reference_doctype, "reference_name": reference_name}
@@ -69,7 +69,7 @@ def get_workspace(reference_doctype, reference_name):
 
 
 @frappe.whitelist(methods=["POST"])
-def save_draft(data):
+def save_draft(data: dict | str) -> dict:
 	data = v.parsed(data)
 	user = v.current_user()
 	if data.get("name"):
@@ -126,7 +126,7 @@ def _ready(doc):
 
 
 @frappe.whitelist(methods=["POST"])
-def schedule_draft(name, send_at, timezone, modified):
+def schedule_draft(name: str, send_at: str, timezone: str, modified: str) -> dict:
 	doc = _owned(name)
 	v.check_modified(doc, modified)
 	if doc.status not in ("Draft", "Scheduled") or doc.communication:
@@ -141,7 +141,7 @@ def schedule_draft(name, send_at, timezone, modified):
 
 
 @frappe.whitelist(methods=["POST"])
-def cancel_email(name, modified):
+def cancel_email(name: str, modified: str) -> dict:
 	doc = _owned(name)
 	if doc.status == "Canceled":
 		return v.public(doc)
@@ -155,7 +155,7 @@ def cancel_email(name, modified):
 
 
 @frappe.whitelist(methods=["POST"])
-def delete_draft(name, modified):
+def delete_draft(name: str, modified: str) -> dict:
 	doc = _owned(name)
 	v.check_modified(doc, modified)
 	if doc.status not in ("Draft", "Canceled") or doc.communication:
@@ -165,7 +165,7 @@ def delete_draft(name, modified):
 
 
 @frappe.whitelist(methods=["POST"])
-def save_sequence(data):
+def save_sequence(data: dict | str) -> dict:
 	data = v.parsed(data)
 	v.current_user()
 	if data.get("name"):
@@ -203,7 +203,15 @@ def save_sequence(data):
 
 
 @frappe.whitelist(methods=["POST"])
-def enroll_sequence(reference_doctype, reference_name, sequence_name, start_at, timezone, sender, recipients):
+def enroll_sequence(
+	reference_doctype: str,
+	reference_name: str,
+	sequence_name: str,
+	start_at: str,
+	timezone: str,
+	sender: str,
+	recipients: str,
+) -> dict:
 	user = v.current_user()
 	# The owner User is a stable mutex even before any enrollment rows exist. Read
 	# matching pending rows with FOR UPDATE too: MariaDB snapshots must be refreshed.
@@ -265,7 +273,7 @@ def enroll_sequence(reference_doctype, reference_name, sequence_name, start_at, 
 
 
 @frappe.whitelist(methods=["POST"])
-def send_draft_now(name, modified):
+def send_draft_now(name: str, modified: str) -> dict:
 	doc = _owned(name)
 	v.check_modified(doc, modified)
 	if doc.status != "Draft" or doc.communication:
@@ -282,7 +290,7 @@ def send_draft_now(name, modified):
 
 
 @frappe.whitelist(methods=["POST"])
-def cancel_enrollment(enrollment_id):
+def cancel_enrollment(enrollment_id: str) -> dict:
 	user = v.current_user()
 	if not isinstance(enrollment_id, str) or not enrollment_id:
 		frappe.throw(_("Choose a follow-up enrollment."))
@@ -307,7 +315,7 @@ def cancel_enrollment(enrollment_id):
 
 
 @frappe.whitelist(methods=["POST"])
-def unschedule_draft(name, modified):
+def unschedule_draft(name: str, modified: str) -> dict:
 	doc = _owned(name)
 	v.check_modified(doc, modified)
 	if doc.status != "Scheduled" or doc.communication:
