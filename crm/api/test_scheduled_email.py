@@ -16,6 +16,13 @@ class TestScheduledEmail(CRMTestCase):
 	def setUp(self):
 		super().setUp()
 		frappe.set_user("Administrator")
+		# Assignment/welcome notifications are unrelated fixture side effects. With
+		# a default mailbox, native in-test notification email registers queue.send
+		# after_commit and would run inside a later managed-delivery SMTP assertion.
+		# Suppress only that producer; the real managed queue/transport stays intact.
+		notifications = patch("frappe.desk.doctype.notification_log.notification_log.send_notification_email")
+		notifications.start()
+		self.addCleanup(notifications.stop)
 		css = patch("frappe.email.email_body.inline_style_in_html", side_effect=lambda html, **kwargs: html)
 		css.start()
 		self.addCleanup(css.stop)
@@ -693,3 +700,38 @@ class TestScheduledEmail(CRMTestCase):
 			dispatch.dispatch_email(second["name"])
 			send.assert_not_called()
 		self.assertEqual(frappe.db.get_value("CRM Email Draft", second["name"], "status"), "Canceled")
+
+	def _disable_default_fixture(self, name):
+		frappe.db.set_value("Email Account", name, {"enable_outgoing": 0, "default_outgoing": 0})
+		# Native dispatch committed this synthetic default; do not leave it active for other suites.
+		frappe.db.commit()  # nosemgrep: frappe-semgrep-rules.rules.frappe-manual-commit
+
+	def test_default_mailbox_fixture_notifications_do_not_escape_into_dispatch(self):
+		frappe.set_user("Administrator")
+		default = frappe.get_doc(
+			{
+				"doctype": "Email Account",
+				"email_account_name": f"Default fixture {self.suffix}",
+				"email_id": f"default-{self.suffix}@example.com",
+				"enable_outgoing": 0,
+				"enable_incoming": 0,
+			}
+		).insert(ignore_permissions=True)
+		frappe.db.set_value("Email Account", default.name, {"enable_outgoing": 1, "default_outgoing": 1})
+		self.addCleanup(self._disable_default_fixture, default.name)
+		# Real assignment machinery still creates its notifications. Its email
+		# producer is isolated in setUp, so no unrelated SMTP callback is deferred.
+		frappe.get_doc(
+			{
+				"doctype": "CRM Lead",
+				"first_name": "Assigned fixture",
+				"lead_owner": self.other,
+			}
+		).insert(ignore_permissions=True)
+		frappe.set_user(self.user)
+		draft = self.scheduled()
+		frappe.db.set_value("Email Account", self.account.name, "enable_outgoing", 0)
+		with patch.object(dispatch.EmailQueue, "send") as send:
+			dispatch.dispatch_email(self._make_due(draft))
+			send.assert_not_called()
+		self.assertEqual(frappe.db.get_value("CRM Email Draft", draft["name"], "status"), "Error")

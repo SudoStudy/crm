@@ -15,7 +15,7 @@ API contract lives in docs/superpowers/specs/2026-10-30-scheduled-email-api.md a
 ## Verified locally
 
 - Fresh frontend suite: 355 tests across30 files pass. Production build succeeds. ESLint has zero errors; nine warnings are in unchanged files. Scoped Prettier passes.
-- Fresh native Framework16.34.0/MariaDB10.6 suite:32 scheduled-email tests pass, including native queue/header/attachment behavior and two-connection concurrency. Personal-settings baseline20 passed separately.
+- Fresh native Framework16.34.0/MariaDB10.6 suite:33 scheduled-email tests pass, including native queue/header/attachment behavior and two-connection concurrency. Personal-settings baseline20 passed separately.
 - Existing offline performance suite:96 tests pass with one optional Twilio SDK test skipped. Targeted Python compile/Ruff checks pass.
 - Independent reviews produced fixes for Reply-To routing, inbound locking, UTC DST folds, nonzero sequence offsets, upload races, unsaved templates, and pausing before editing.
 - Framework15 compatibility and hosted CI are not yet verified. No live email was sent; no production schema or permissions were modified.
