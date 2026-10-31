@@ -1,0 +1,46 @@
+{
+ "doctype": "DocType",
+ "name": "CRM Email Sequence",
+ "module": "FCRM",
+ "autoname": "hash",
+ "engine": "InnoDB",
+ "field_order": [
+  "title",
+  "steps"
+ ],
+ "fields": [
+  {
+   "fieldname": "title",
+   "fieldtype": "Data",
+   "label": "Title",
+   "reqd": 1
+  },
+  {
+   "fieldname": "steps",
+   "fieldtype": "Table",
+   "label": "Steps",
+   "options": "CRM Email Sequence Step",
+   "reqd": 1
+  }
+ ],
+ "permissions": [
+  {
+   "role": "Sales User",
+   "read": 1,
+   "select": 1
+  },
+  {
+   "role": "Sales Manager",
+   "read": 1,
+   "select": 1
+  },
+  {
+   "role": "System Manager",
+   "read": 1,
+   "select": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "track_changes": 1
+}

@@ -1,0 +1,37 @@
+{
+ "doctype": "DocType",
+ "name": "CRM Email Sequence Step",
+ "module": "FCRM",
+ "autoname": "hash",
+ "engine": "InnoDB",
+ "field_order": [
+  "day_offset",
+  "subject",
+  "content"
+ ],
+ "fields": [
+  {
+   "fieldname": "day_offset",
+   "fieldtype": "Int",
+   "label": "Day Offset",
+   "reqd": 1
+  },
+  {
+   "fieldname": "subject",
+   "fieldtype": "Data",
+   "label": "Subject",
+   "reqd": 1
+  },
+  {
+   "fieldname": "content",
+   "fieldtype": "Text Editor",
+   "label": "Content",
+   "reqd": 1
+  }
+ ],
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "track_changes": 1,
+ "istable": 1
+}

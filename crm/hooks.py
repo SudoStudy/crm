@@ -133,6 +133,8 @@ before_uninstall = "crm.uninstall.before_uninstall"
 # Permissions evaluated in scripted ways
 
 permission_query_conditions = {
+	"CRM Email Draft": "crm.emailing.permissions.draft_query",
+	"CRM Email Sequence": "crm.emailing.permissions.sequence_query",
 	"CRM Sales Target": "crm.permissions.sales_targets.get_target_permission_query_conditions",
 	"CRM Sales Target Rule": "crm.permissions.sales_targets.get_rule_permission_query_conditions",
 	"CRM Lead": "crm.permissions.org_hierarchy.get_lead_permission_query_conditions",
@@ -141,6 +143,8 @@ permission_query_conditions = {
 }
 
 has_permission = {
+	"CRM Email Draft": "crm.emailing.permissions.has_permission",
+	"CRM Email Sequence": "crm.emailing.permissions.has_permission",
 	"CRM Sales Target": "crm.permissions.sales_targets.has_target_permission",
 	"CRM Sales Target Rule": "crm.permissions.sales_targets.has_target_permission",
 	"CRM Lead": "crm.permissions.org_hierarchy.has_lead_permission",
@@ -230,6 +234,7 @@ automation_events = [
 # Override standard doctype classes
 
 override_doctype_class = {
+	"Email Queue": "crm.emailing.dispatch.ManagedEmailQueue",
 	"Contact": "crm.overrides.contact.CustomContact",
 	"Email Template": "crm.overrides.email_template.CustomEmailTemplate",
 }
@@ -254,9 +259,11 @@ doc_events = {
 		"on_update": ["crm.api.todo.on_update"],
 	},
 	"Communication": {
+		"before_insert": ["crm.emailing.dispatch.lock_reply_mailboxes"],
 		"after_insert": [
 			"crm.utils.on_communication_insert",
 			"crm.automation.events.on_communication",
+			"crm.emailing.dispatch.on_communication",
 		],
 		"on_update": ["crm.utils.on_communication_update"],
 	},
@@ -325,6 +332,7 @@ doc_events = {
 # ---------------
 
 scheduler_events = {
+	"all": ["crm.emailing.dispatch.dispatch_due_emails"],
 	"hourly": [
 		"crm.automation.events.emit_overdue_tasks",
 		"crm.performance.call_costs.reconcile_pending_costs",
