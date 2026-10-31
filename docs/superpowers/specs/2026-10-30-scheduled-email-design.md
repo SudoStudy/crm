@@ -4,7 +4,11 @@ The user approved the full proposed scope: durable per-customer drafts, scheduli
 
 ## User experience
 
+The existing customer email composer is the main scheduling entry point. Its primary Schedule action opens date, time, timezone and a default-on "Cancel if a new email arrives from this customer" toggle. The existing body, sender, recipients, CC/BCC and attachments are scheduled together. Send now remains an explicit secondary action. Ctrl/Cmd+Enter opens scheduling. Uploads block submission until complete. An uncertain scheduling response retains the original request for retry before editing or sending again, including after a page reload.
+
 A customer Email workspace appears alongside the existing lead/deal composer. It stores complete drafts including sender, recipients, CC/BCC, subject, HTML and attachments on the server. Reopening restores the full draft across devices. Schedule shows an explicit timezone; drafts can be edited, scheduled, canceled and deleted if still drafts. Status and errors are visible. Existing immediate sending remains available. A sequence editor stores reusable steps with day offsets; enrollment previews/creates the individual pending emails and stops remaining steps on a matching inbound reply.
+
+Agents can schedule individual emails with the atomic `schedule_email` API and manage their own sequences. The API accepts a caller-generated request ID to deduplicate identical retries. See the [API contract](2026-10-30-scheduled-email-api.md) for the request and cancellation methods.
 
 ## State and ownership
 

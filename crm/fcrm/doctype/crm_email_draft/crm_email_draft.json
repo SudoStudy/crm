@@ -23,7 +23,9 @@
   "enrollment_id",
   "communication",
   "last_error",
-  "dispatch_started_at"
+  "dispatch_started_at",
+  "request_key",
+  "request_fingerprint"
  ],
  "fields": [
   {
@@ -138,6 +140,23 @@
    "fieldtype": "Datetime",
    "label": "Dispatch Started At",
    "read_only": 1
+  },
+  {
+   "fieldname": "request_key",
+   "fieldtype": "Data",
+   "label": "Request Key",
+   "read_only": 1,
+   "hidden": 1,
+   "no_copy": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "request_fingerprint",
+   "fieldtype": "Data",
+   "label": "Request Fingerprint",
+   "read_only": 1,
+   "hidden": 1,
+   "no_copy": 1
   }
  ],
  "permissions": [

@@ -5,7 +5,7 @@
     :extensions="extensions"
     :placeholder="placeholder"
     :editable="editable"
-    :upload-function="(file) => uploadFile(file, doctype, modelValue.name)"
+    :upload-function="uploadInlineFile"
   >
     <div class="relative w-full">
       <div class="flex flex-col gap-3">
@@ -119,9 +119,7 @@
             </template>
           </AttachmentItem>
         </div>
-        <div
-          class="flex justify-between gap-2 overflow-hidden border-t px-4 py-2.5"
-        >
+        <div class="flex flex-wrap justify-between gap-2 border-t px-4 py-2.5">
           <div class="flex gap-1 items-center overflow-x-auto">
             <Button
               :tooltip="__('Insert Email Template')"
@@ -130,18 +128,21 @@
               @click="showEmailTemplateSelectorModal = true"
             />
             <FileUploader
+              :validate-file="beginAttachmentUpload"
               :upload-args="{
                 doctype: doctype,
                 docname: modelValue.name,
                 private: true,
               }"
-              @success="(f) => attachments.push(f)"
+              @success="addAttachment"
+              @failure="attachmentFailed"
             >
               <template #default="{ openFileSelector }">
                 <Button
                   :tooltip="__('Attach a File')"
                   :icon="AttachmentIcon"
                   variant="ghost"
+                  :disabled="busy || uploading"
                   @click="openFileSelector()"
                 />
               </template>
@@ -160,16 +161,24 @@
               />
             </IconPicker>
           </div>
-          <div class="mt-2 flex items-center justify-end space-x-2 sm:mt-0">
+          <div class="ml-auto flex flex-wrap items-center justify-end gap-2">
             <Button v-bind="discardButtonProps || {}" :label="__('Discard')" />
+            <slot name="secondary-actions" />
             <Button
               variant="solid"
               v-bind="submitButtonProps || {}"
-              :label="`${__('Send')} (${submitShortcutLabel})`"
+              :label="`${submitLabel || __('Send')} (${submitShortcutLabel})`"
             />
           </div>
         </div>
       </div>
+      <p
+        v-if="uploadError"
+        role="alert"
+        class="px-4 pb-2 text-sm text-ink-red-3"
+      >
+        {{ uploadError }}
+      </p>
     </div>
   </Editor>
   <EmailTemplateSelectorModal
@@ -213,7 +222,10 @@ const props = defineProps({
   editorProps: { type: Object, default: () => ({}) },
   submitButtonProps: { type: Object, default: () => ({}) },
   discardButtonProps: { type: Object, default: () => ({}) },
+  submitLabel: { type: String, default: '' },
+  busy: Boolean,
 })
+const emit = defineEmits(['uploading'])
 
 const CustomParagraph = Paragraph.extend({
   addAttributes() {
@@ -256,6 +268,45 @@ const ccEmails = ref([])
 const bccEmails = ref([])
 const ccInput = ref(null)
 const bccInput = ref(null)
+const attachmentUploading = ref(false)
+const inlineUploads = ref(0)
+const uploadError = ref('')
+const uploading = computed(
+  () => attachmentUploading.value || inlineUploads.value > 0,
+)
+watch(uploading, (value) => emit('uploading', value), { flush: 'sync' })
+
+function beginAttachmentUpload() {
+  if (props.busy || uploading.value)
+    return new Error(__('Wait for the current action to finish.'))
+  attachmentUploading.value = true
+  uploadError.value = ''
+  return null
+}
+function addAttachment(file) {
+  if (!attachments.value.some((item) => item.name === file.name))
+    attachments.value.push(file)
+  attachmentUploading.value = false
+}
+function attachmentFailed() {
+  attachmentUploading.value = false
+  uploadError.value = __(
+    'The attachment could not be uploaded. Please try again.',
+  )
+}
+async function uploadInlineFile(file) {
+  if (props.busy) throw new Error(__('Wait for the current action to finish.'))
+  inlineUploads.value++
+  uploadError.value = ''
+  try {
+    return await uploadFile(file, props.doctype, modelValue.value.name)
+  } catch (error) {
+    uploadError.value = __('The image could not be uploaded. Please try again.')
+    throw error
+  } finally {
+    inlineUploads.value--
+  }
+}
 
 const extensions = buildEditorExtensions({
   starterKit: { paragraph: false },
@@ -295,12 +346,14 @@ watch(
 const editor = computed(() => textEditor.value?.editor)
 
 function removeAttachment(attachment) {
+  if (props.busy || uploading.value) return
   attachments.value = attachments.value.filter((a) => a !== attachment)
 }
 
 const showEmailTemplateSelectorModal = ref(false)
 
 async function applyEmailTemplate(template) {
+  if (props.busy) return
   let doc = modelValue.value
 
   let data = await call(
@@ -312,6 +365,7 @@ async function applyEmailTemplate(template) {
     },
   )
 
+  if (props.busy) return
   if (data.subject) {
     subject.value = data.subject
   }
@@ -324,6 +378,7 @@ async function applyEmailTemplate(template) {
 }
 
 function appendEmoji() {
+  if (props.busy) return
   editor.value.commands.insertContent(emoji.value)
   editor.value.commands.focus()
   emoji.value = ''
