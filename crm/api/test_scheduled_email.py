@@ -168,6 +168,146 @@ class TestScheduledEmail(CRMTestCase):
 		with self.assertRaises(frappe.ValidationError):
 			api.schedule_draft(updated["name"], "2030-01-01T00:00:00", "UTC", str(updated["modified"]))
 
+	def schedule_data(self, **kwargs):
+		return {
+			"reference_doctype": "CRM Lead",
+			"reference_name": self.lead.name,
+			"sender": self.user,
+			"recipients": self.lead.email,
+			"subject": "Composer scheduled email",
+			"content": "<p>Individual follow-up</p>",
+			**kwargs,
+		}
+
+	def test_single_call_schedules_with_reply_toggle_and_retry_returns_same_email(self):
+		data, send_at = self.schedule_data(stop_on_reply=False), self.future()
+		first = api.schedule_email(data, send_at, "UTC", "composer-1")
+		second = api.schedule_email(data, send_at, "UTC", "composer-1")
+		self.assertEqual(first["name"], second["name"])
+		self.assertEqual(second["status"], "Scheduled")
+		self.assertFalse(second["stop_on_reply"])
+		self.assertEqual(frappe.db.count("CRM Email Draft", {"owner": self.user}), 1)
+		self.assertNotIn("request_key", second)
+		# The toggle controls the existing inbound hook, even with this one-call API.
+		self.inbound()
+		self.assertEqual(frappe.db.get_value("CRM Email Draft", first["name"], "status"), "Scheduled")
+
+	def test_single_call_normalizes_default_fields_and_offset_on_retry(self):
+		import json
+
+		data, send_at = self.schedule_data(), self.future()
+		first = api.schedule_email(json.dumps(data), send_at, "UTC", "normalized-request")
+		other_offset = datetime.fromisoformat(send_at).astimezone(timezone(timedelta(hours=5))).isoformat()
+		retry = api.schedule_email(
+			{**data, "cc": "", "bcc": "", "attachments": [], "stop_on_reply": True},
+			other_offset,
+			"UTC",
+			"normalized-request",
+		)
+		self.assertEqual(first["name"], retry["name"])
+
+	def test_single_call_defaults_to_cancel_on_reply(self):
+		draft = api.schedule_email(self.schedule_data(), self.future(), "UTC", "reply-default")
+		self.assertTrue(draft["stop_on_reply"])
+		self.inbound()
+		self.assertEqual(frappe.db.get_value("CRM Email Draft", draft["name"], "status"), "Canceled")
+
+	def test_single_call_retry_after_time_passes_or_cancel_does_not_reschedule(self):
+		data, send_at = self.schedule_data(), self.future()
+		first = api.schedule_email(data, send_at, "UTC", "retry-after-cancel")
+		api.cancel_email(first["name"], str(first["modified"]))
+		with patch.object(
+			v, "utcnow", return_value=datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=2)
+		):
+			retry = api.schedule_email(data, send_at, "UTC", "retry-after-cancel")
+		self.assertEqual(retry["name"], first["name"])
+		self.assertEqual(retry["status"], "Canceled")
+
+	def test_single_call_rejects_reused_request_id_with_different_payload(self):
+		data, send_at = self.schedule_data(), self.future()
+		first = api.schedule_email(data, send_at, "UTC", "conflict")
+		for changed in ({**data, "subject": "Different"}, {**data, "stop_on_reply": False}):
+			with self.assertRaises(frappe.ValidationError):
+				api.schedule_email(changed, send_at, "UTC", "conflict")
+		self.assertEqual(frappe.get_doc("CRM Email Draft", first["name"]).subject, data["subject"])
+		self.assertEqual(frappe.db.count("CRM Email Draft", {"owner": self.user}), 1)
+
+	def test_single_call_failed_schedule_is_atomic_and_key_can_be_retried(self):
+		data = self.schedule_data()
+		for send_at, changed in (
+			("2000-01-01T00:00:00Z", data),
+			(self.future(), {**data, "content": ""}),
+		):
+			with self.assertRaises(frappe.ValidationError):
+				api.schedule_email(changed, send_at, "UTC", "invalid-first")
+			self.assertEqual(frappe.db.count("CRM Email Draft", {"owner": self.user}), 0)
+		self.assertEqual(
+			api.schedule_email(data, self.future(), "UTC", "invalid-first")["status"], "Scheduled"
+		)
+
+	def test_single_call_validates_request_id_and_existing_draft(self):
+		for request_id in ("", "   ", "x" * 129):
+			with self.assertRaises(frappe.ValidationError):
+				api.schedule_email(self.schedule_data(), self.future(), "UTC", request_id)
+		draft = self.draft()
+		with self.assertRaises(frappe.ValidationError):
+			api.schedule_email({**self.schedule_data(), "name": draft["name"]}, self.future(), "UTC", "edit")
+
+	def test_single_call_enforces_customer_and_sender_permissions_and_owner_scoped_ids(self):
+		data, send_at = self.schedule_data(), self.future()
+		first = api.schedule_email(data, send_at, "UTC", "same-agent-id")
+		frappe.set_user(self.other)
+		with self.assertRaises(frappe.PermissionError):
+			api.schedule_email(data, send_at, "UTC", "same-agent-id")
+		frappe.set_user(self.user)
+		with self.assertRaises(frappe.PermissionError):
+			api.schedule_email({**data, "sender": self.other}, send_at, "UTC", "bad-sender")
+		# A distinct owner can use the same client ID without seeing the first email.
+		frappe.set_user("Administrator")
+		lead = frappe.get_doc("CRM Lead", self.lead.name)
+		lead.lead_owner = self.other
+		lead.save(ignore_permissions=True)
+		other = frappe.get_doc("User", self.other)
+		other.append("user_emails", {"email_account": self.account.name, "email_id": self.user})
+		other.save(ignore_permissions=True)
+		frappe.set_user(self.other)
+		second = api.schedule_email(data, send_at, "UTC", "same-agent-id")
+		self.assertNotEqual(first["name"], second["name"])
+		self.assertEqual(frappe.get_doc("CRM Email Draft", second["name"]).owner, self.other)
+
+	def test_concurrent_single_call_retries_create_one_email(self):
+		from threading import Barrier, Thread
+
+		data, send_at, user = self.schedule_data(), self.future(), self.user
+		site, sites_path = frappe.local.site, frappe.local.sites_path
+		# Synthetic fixtures must be visible to independent connections.
+		frappe.db.commit()  # nosemgrep: frappe-semgrep-rules.rules.frappe-manual-commit
+		barrier, errors, names = Barrier(2), [], []
+
+		def worker():
+			try:
+				frappe.init(site=site, sites_path=sites_path)
+				frappe.connect()
+				frappe.set_user(user)
+				barrier.wait(timeout=10)
+				names.append(api.schedule_email(data, send_at, "UTC", "concurrent-request")["name"])
+				frappe.db.commit()  # nosemgrep: frappe-semgrep-rules.rules.frappe-manual-commit
+			except Exception as error:
+				errors.append(type(error).__name__)
+			finally:
+				frappe.destroy()
+
+		threads = [Thread(target=worker, daemon=True) for _ in range(2)]
+		for thread in threads:
+			thread.start()
+		for thread in threads:
+			thread.join(timeout=20)
+		self.assertFalse(any(thread.is_alive() for thread in threads))
+		self.assertEqual(errors, [])
+		self.assertEqual(len(names), 2)
+		self.assertEqual(names[0], names[1])
+		self.assertEqual(frappe.db.count("CRM Email Draft", {"owner": user}), 1)
+
 	def test_stale_modified_token_rejected(self):
 		draft = self.draft()
 		with self.assertRaises(frappe.TimestampMismatchError):

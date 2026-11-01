@@ -1,7 +1,9 @@
 """Session-bound durable drafts and reply-aware customer follow-ups."""
 
+import hashlib
 import json
 from datetime import timedelta
+from datetime import timezone as datetime_timezone
 
 import frappe
 from frappe import _
@@ -138,6 +140,68 @@ def schedule_draft(name: str, send_at: str, timezone: str, modified: str) -> dic
 	doc.status, doc.last_error = "Scheduled", None
 	v.save(doc)
 	return v.public(doc)
+
+
+@frappe.whitelist(methods=["POST"])
+def schedule_email(data: dict | str, send_at: str, timezone: str, request_id: str) -> dict:
+	"""Create and schedule one email atomically; identical retries return its current state."""
+	data = v.parsed(data)
+	user = v.current_user()
+	if not isinstance(request_id, str) or not request_id.strip() or len(request_id) > 128:
+		frappe.throw(_("Supply a request ID of at most 128 characters."))
+	if data.get("name") or data.get("modified"):
+		frappe.throw(_("Use schedule_draft to schedule an existing draft."))
+	v.reference(data.get("reference_doctype"), data.get("reference_name"), email=True)
+	v.zone(timezone)
+	stamp = v.aware(send_at).astimezone(datetime_timezone.utc).isoformat()
+	# Fingerprint only accepted input. Defaults match save_draft, so equivalent
+	# omitted CC/BCC/attachments and the default reply toggle have the same key.
+	payload = {
+		field: data.get(field, "")
+		for field in (
+			"reference_doctype",
+			"reference_name",
+			"sender",
+			"recipients",
+			"cc",
+			"bcc",
+			"subject",
+			"content",
+		)
+	}
+	payload.update(
+		attachments=data.get("attachments", []),
+		stop_on_reply=cint(data.get("stop_on_reply", 1)),
+		send_at=stamp,
+		timezone=timezone,
+	)
+	fingerprint = hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
+	request_key = hashlib.sha256(json.dumps([user.name, request_id]).encode()).hexdigest()
+	# current_user holds the owner User mutex even before a draft exists. The
+	# locking read also refreshes MariaDB's repeatable-read snapshot on a retry.
+	existing = frappe.db.sql(
+		"select name, request_fingerprint from `tabCRM Email Draft` where request_key=%s for update",
+		(request_key,),
+		as_dict=True,
+	)
+	if existing:
+		if existing[0].request_fingerprint != fingerprint:
+			frappe.throw(_("This request ID was already used for a different email. Use a new request ID."))
+		return v.public(frappe.get_doc(DRAFT, existing[0].name, for_update=True))
+	# A failed schedule must not leave an orphan draft, including callers inside
+	# another server transaction that catch the validation error themselves.
+	savepoint = "schedule_email_" + frappe.generate_hash(length=10)
+	frappe.db.savepoint(savepoint)
+	try:
+		draft = save_draft(data)
+		scheduled = schedule_draft(draft["name"], send_at, timezone, str(draft["modified"]))
+		doc = frappe.get_doc(DRAFT, scheduled["name"], for_update=True)
+		doc.request_key, doc.request_fingerprint = request_key, fingerprint
+		v.save(doc)
+		return v.public(doc)
+	except Exception:
+		frappe.db.rollback(save_point=savepoint)
+		raise
 
 
 @frappe.whitelist(methods=["POST"])

@@ -278,6 +278,16 @@ function updateRow(saved) {
   if (index >= 0) workspace.value.drafts.splice(index, 1, saved)
   else workspace.value.drafts.unshift(saved)
 }
+// The existing composer can schedule without replacing an in-progress draft in
+// this management panel. A closed panel will fetch the complete list on opening.
+function addScheduled(saved) {
+  if (
+    saved.reference_doctype === props.referenceDoctype &&
+    saved.reference_name === props.referenceName
+  )
+    updateRow(saved)
+}
+defineExpose({ addScheduled })
 function openDraft(item, hint) {
   draft.value = draftFields(item, {
     reference_doctype: props.referenceDoctype,
