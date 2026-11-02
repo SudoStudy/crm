@@ -150,6 +150,48 @@ describe('customer email workspace', () => {
     vi.restoreAllMocks()
   })
 
+  it('shows only scheduled-email management without another draft or sequence composer', async () => {
+    api.call.mockResolvedValue(
+      data([
+        { ...baseDraft, subject: 'Never scheduled draft' },
+        {
+          ...baseDraft,
+          name: 'scheduled-1',
+          status: 'Scheduled',
+          subject: 'Queued email',
+          timezone: 'UTC',
+        },
+      ]),
+    )
+    mount()
+    state.scheduledOnly = true
+    await tick()
+    expect(button('Drafts & scheduled emails')).toBeUndefined()
+    await click('Scheduled emails')
+    expect(button('New saved draft')).toBeUndefined()
+    expect(root.querySelector('form')).toBeNull()
+    expect(root.textContent).not.toContain('Never scheduled draft')
+    expect(root.textContent).not.toContain('Follow-up sequences')
+    expect(root.textContent).toContain('Queued email')
+    expect(button('Edit email')).toBeTruthy()
+    expect(button('Cancel email')).toBeTruthy()
+  })
+
+  it('keeps paused schedules editable after refreshing scheduled-email management', async () => {
+    api.call.mockResolvedValue(
+      data([{ ...baseDraft, timezone: 'Europe/London' }]),
+    )
+    mount()
+    state.scheduledOnly = true
+    await tick()
+    await click('Scheduled emails')
+    await click('Refresh emails')
+    await click('Edit email')
+    expect(field('Subject').value).toBe('Saved subject')
+    expect(field('Timezone').value).toBe('Europe/London')
+    expect(button('Schedule email')).toBeTruthy()
+  })
+
   it('loads only on open and restores complete server-saved draft fields', async () => {
     api.call.mockResolvedValue(data([baseDraft]))
     mount()
