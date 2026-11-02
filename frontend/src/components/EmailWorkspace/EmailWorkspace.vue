@@ -2,9 +2,13 @@
   <section class="border-t border-outline-gray-2 px-4 py-3">
     <Button
       :label="
-        opened
-          ? __('Hide drafts & scheduled emails')
-          : __('Drafts & scheduled emails')
+        scheduledOnly
+          ? opened
+            ? __('Hide scheduled emails')
+            : __('Scheduled emails')
+          : opened
+            ? __('Hide drafts & scheduled emails')
+            : __('Drafts & scheduled emails')
       "
       icon-left="mail"
       :disabled="allBusy"
@@ -13,13 +17,18 @@
     <div v-if="opened" class="mt-3 flex flex-col gap-3">
       <p class="text-sm text-ink-gray-6">
         {{
-          __(
-            'Your saved drafts, scheduled emails and follow-up sequences for this customer.',
-          )
+          scheduledOnly
+            ? __(
+                'Review, edit or cancel emails scheduled from the email composer.',
+              )
+            : __(
+                'Your saved drafts, scheduled emails and follow-up sequences for this customer.',
+              )
         }}
       </p>
       <div class="flex flex-wrap gap-2">
         <Button
+          v-if="!scheduledOnly"
           :label="__('New saved draft')"
           :disabled="allBusy || loading"
           @click="edit()"
@@ -45,7 +54,7 @@
       >
         {{
           __(
-            'Connect your mailbox in Settings → Profile before scheduling email. Your drafts can still be saved.',
+            'Connect your mailbox in Settings → Profile before scheduling email.',
           )
         }}
       </p>
@@ -66,14 +75,18 @@
         @uploading="uploading = $event"
       />
       <p
-        v-if="!loading && !workspace.drafts.length"
+        v-if="!loading && !visibleEmails.length"
         class="text-sm text-ink-gray-6"
       >
-        {{ __('No saved emails for this customer yet.') }}
+        {{
+          scheduledOnly
+            ? __('No scheduled emails for this customer yet.')
+            : __('No saved emails for this customer yet.')
+        }}
       </p>
       <ul class="flex flex-col gap-2">
         <li
-          v-for="item in workspace.drafts"
+          v-for="item in visibleEmails"
           :key="item.name"
           class="flex flex-col gap-2 rounded border border-outline-gray-2 p-3"
         >
@@ -146,6 +159,7 @@
         }}
       </p>
       <EmailSequencePanel
+        v-if="!scheduledOnly"
         :key="referenceDoctype + ':' + referenceName"
         :sequences="workspace.sequences"
         :senders="workspace.senders"
@@ -179,6 +193,7 @@ const props = defineProps({
   referenceDoctype: { type: String, required: true },
   referenceName: { type: String, required: true },
   defaultRecipient: { type: String, default: '' },
+  scheduledOnly: { type: Boolean, default: false },
 })
 const emit = defineEmits(['changed'])
 const emptyWorkspace = () => ({
@@ -191,6 +206,18 @@ const workspace = ref(emptyWorkspace()),
   opened = ref(false),
   loading = ref(false),
   busy = ref(false)
+// Paused schedules retain their timezone, so they stay recoverable after an
+// edit or refresh. Unscheduled drafts belong to the separate draft workspace.
+const visibleEmails = computed(() =>
+  props.scheduledOnly
+    ? workspace.value.drafts.filter(
+        (item) =>
+          item.timezone ||
+          item.send_at ||
+          ['Scheduled', 'Sending', 'Sent', 'Error'].includes(item.status),
+      )
+    : workspace.value.drafts,
+)
 const error = ref(''),
   notice = ref(''),
   draft = ref(null),

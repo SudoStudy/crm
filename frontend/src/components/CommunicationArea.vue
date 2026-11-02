@@ -2,6 +2,7 @@
   <EmailWorkspace
     v-if="doc.name && ['CRM Lead', 'CRM Deal'].includes(doctype)"
     ref="emailWorkspace"
+    scheduled-only
     :reference-doctype="doctype"
     :reference-name="String(doc.name)"
     :default-recipient="doc.email || ''"
