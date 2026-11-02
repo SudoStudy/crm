@@ -5,7 +5,7 @@
       <input
         v-model="wall"
         type="datetime-local"
-        class="rounded border border-outline-gray-2 bg-surface-white p-2 text-ink-gray-9"
+        class="min-w-0 rounded border border-outline-gray-2 bg-surface-gray-2 p-2 text-ink-gray-9 placeholder-ink-gray-4 [color-scheme:light] focus:border-outline-gray-4 focus:bg-surface-base focus:outline-none focus:ring-2 focus:ring-outline-gray-3 disabled:cursor-not-allowed disabled:opacity-50 dark:[color-scheme:dark]"
         :disabled="disabled"
       />
     </label>
@@ -16,7 +16,7 @@
         type="text"
         :list="listId"
         placeholder="Europe/London"
-        class="rounded border border-outline-gray-2 bg-surface-white p-2 text-ink-gray-9"
+        class="min-w-0 rounded border border-outline-gray-2 bg-surface-gray-2 p-2 text-ink-gray-9 placeholder-ink-gray-4 [color-scheme:light] focus:border-outline-gray-4 focus:bg-surface-base focus:outline-none focus:ring-2 focus:ring-outline-gray-3 disabled:cursor-not-allowed disabled:opacity-50 dark:[color-scheme:dark]"
         :disabled="disabled"
       />
       <datalist :id="listId">
