@@ -43,8 +43,7 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "From Number",
-   "options": "Phone",
-   "reqd": 1
+   "options": "Phone"
   },
   {
    "fieldname": "status",
@@ -83,8 +82,7 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "To Number",
-   "options": "Phone",
-   "reqd": 1
+   "options": "Phone"
   },
   {
    "fieldname": "duration",
