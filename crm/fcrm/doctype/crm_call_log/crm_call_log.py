@@ -155,12 +155,38 @@ class CRMCallLog(Document):
 		return d
 
 
+@frappe.whitelist()
+def get_manual_call_defaults(reference_doctype: str = "", reference_docname: str = ""):
+	"""Prefill a new manual call using only a readable customer and the current user."""
+	if not frappe.has_permission("CRM Call Log", "create"):
+		frappe.throw(_("Not permitted"), frappe.PermissionError)
+
+	number = None
+	if reference_doctype or reference_docname:
+		if reference_doctype not in ("CRM Lead", "CRM Deal") or not reference_docname:
+			frappe.throw(_("A valid lead or deal is required."), frappe.ValidationError)
+		if not frappe.has_permission(reference_doctype, "read", reference_docname):
+			frappe.throw(_("Not permitted"), frappe.PermissionError)
+		customer = frappe.get_doc(reference_doctype, reference_docname)
+		number = customer.get("mobile_no") or customer.get("phone")
+
+	user = frappe.get_cached_doc("User", frappe.session.user)
+	return {
+		"type": "Outgoing",
+		"status": "Completed",
+		"caller": frappe.session.user,
+		"from": user.get("mobile_no") or user.get("phone"),
+		"to": number,
+	}
+
+
 def parse_call_log(call):
 	call["show_recording"] = False
 	call["_duration"] = seconds_to_duration(call.get("duration"))
 	if call.get("type") == "Incoming":
 		call["activity_type"] = "incoming_call"
-		contact = get_contact_by_phone_number(call.get("from"))
+		number = call.get("from")
+		contact = get_contact_by_phone_number(number) if number and number.strip() else {}
 		receiver = (
 			frappe.db.get_values("User", call.get("receiver"), ["full_name", "user_image"])[0]
 			if call.get("receiver")
@@ -176,7 +202,8 @@ def parse_call_log(call):
 		}
 	elif call.get("type") == "Outgoing":
 		call["activity_type"] = "outgoing_call"
-		contact = get_contact_by_phone_number(call.get("to"))
+		number = call.get("to")
+		contact = get_contact_by_phone_number(number) if number and number.strip() else {}
 		caller = (
 			frappe.db.get_values("User", call.get("caller"), ["full_name", "user_image"])[0]
 			if call.get("caller")

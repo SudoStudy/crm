@@ -18,6 +18,57 @@ class TestCRMCallLog(FrappeTestCase):
 	def tearDown(self):
 		frappe.db.rollback()
 
+	def test_manual_calls_without_numbers_can_be_saved_and_read(self):
+		from crm.api.activities import get_activities
+
+		lead = frappe.get_doc({"doctype": "CRM Lead", "first_name": "Manual call regression"}).insert()
+		for direction in ("Incoming", "Outgoing"):
+			with self.subTest(direction=direction):
+				call = create_test_call_log(
+					type=direction,
+					from_number=None,
+					to=None,
+					reference_doctype="CRM Lead",
+					reference_docname=lead.name,
+				)
+				self.assertEqual(get_call_log(call.name)["name"], call.name)
+				self.assertTrue(get_activities(lead.name))
+
+	def test_missing_numbers_do_not_lookup_an_empty_contact(self):
+		for direction in ("Incoming", "Outgoing"):
+			for number in (None, "", "   "):
+				with self.subTest(direction=direction, number=number):
+					with patch(
+						"crm.fcrm.doctype.crm_call_log.crm_call_log.get_contact_by_phone_number"
+					) as lookup:
+						parsed = parse_call_log({"type": direction, "from": number, "to": number})
+						lookup.assert_not_called()
+						contact = parsed["_caller" if direction == "Incoming" else "_receiver"]
+						self.assertEqual(contact["label"], "Unknown")
+
+	def test_manual_defaults_use_customer_mobile_and_current_user(self):
+		from crm.fcrm.doctype.crm_call_log.crm_call_log import get_manual_call_defaults
+
+		lead = frappe.get_doc(
+			{
+				"doctype": "CRM Lead",
+				"first_name": "Prefill regression",
+				"mobile_no": "+442079460001",
+				"phone": "+442079460002",
+			}
+		).insert()
+		defaults = get_manual_call_defaults("CRM Lead", lead.name)
+		self.assertEqual(defaults["to"], lead.mobile_no)
+		self.assertEqual(defaults["caller"], frappe.session.user)
+		self.assertEqual(defaults["type"], "Outgoing")
+
+	def test_manual_defaults_check_reference_permission(self):
+		from crm.fcrm.doctype.crm_call_log.crm_call_log import get_manual_call_defaults
+
+		with patch("frappe.has_permission", side_effect=[True, False]):
+			with self.assertRaises(frappe.PermissionError):
+				get_manual_call_defaults("CRM Lead", "unreadable")
+
 	def test_call_log_creation_incoming(self):
 		"""Test creating an incoming call log"""
 		call = create_test_call_log(
